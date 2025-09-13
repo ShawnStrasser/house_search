@@ -8,7 +8,7 @@
 
     <div class="controls">
         <div class="settings-nav">
-            <a href="/" class="nav-button">
+            <a href="javascript:void(0)" onclick="goBackToProperties()" class="nav-button">
                 ⬅️ Back to Properties
             </a>
             <button type="button" class="nav-button" onclick="resetToDefaults()">
@@ -500,6 +500,21 @@
 </style>
 
 <script>
+// Go back to properties with current parameters
+function goBackToProperties() {
+    // Build URL with current parameters from URL (including password and weights)
+    const currentUrl = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams();
+    
+    // Add all current parameters
+    for (const [key, value] of currentUrl.entries()) {
+        params.append(key, value);
+    }
+    
+    // Navigate to main page with parameters
+    window.location.href = '/?' + params.toString();
+}
+
 // Reset to defaults
 function resetToDefaults() {
     const defaults = {{ default_weights | tojson }};
@@ -519,7 +534,7 @@ document.getElementById('weights-form').addEventListener('submit', function(e) {
     const formData = new FormData(this);
     const params = new URLSearchParams();
     
-    // Add current non-weight parameters from URL if they exist
+    // Add current non-weight parameters from URL if they exist (including password)
     const currentUrl = new URLSearchParams(window.location.search);
     for (const [key, value] of currentUrl.entries()) {
         if (!key.startsWith('weight_')) {

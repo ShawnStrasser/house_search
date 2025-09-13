@@ -11,7 +11,7 @@
         <div class="control-group">
             <label for="password">Password (for editing ratings):</label>
             <div class="control-row">
-                <input type="password" id="password" name="password" 
+                <input type="text" id="password" name="password" 
                        value="{{ request.args.get('password', '') }}" 
                        placeholder="Enter password" maxlength="4">
                 {% if request.args.get('password') %}
@@ -321,9 +321,15 @@
 
 <script>
 function goToSettings() {
-    // Build URL with current weight parameters
+    // Build URL with current weight parameters and password
     const currentParams = new URLSearchParams(window.location.search);
     const settingsParams = new URLSearchParams();
+    
+    // Transfer password if it exists
+    const passwordValue = document.getElementById('password').value;
+    if (passwordValue) {
+        settingsParams.append('password', passwordValue);
+    }
     
     // Transfer current weight parameters to settings URL
     {% if current_weights %}
