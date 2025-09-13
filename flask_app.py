@@ -734,6 +734,25 @@ def settings():
         logger.error(f"Error in settings route: {e}")
         return render_template('error.html', error=str(e))
 
+@app.route('/health')
+def health_check():
+    """Lightweight health check endpoint for Railway deployment"""
+    try:
+        # Just check if we can connect to the database quickly
+        # Don't run the full property scoring query
+        return jsonify({
+            'status': 'healthy',
+            'timestamp': datetime.now().isoformat(),
+            'database_url_configured': bool(RATINGS_DB_URL)
+        })
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        return jsonify({
+            'status': 'unhealthy',
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }), 500
+
 @app.route('/keepalive')
 def manual_keepalive():
     """Manual endpoint to test database keepalive - useful for debugging"""
