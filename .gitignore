@@ -42,11 +42,6 @@ Thumbs.db
 # Jupyter Notebook
 .ipynb_checkpoints
 
-# Database files
-*.db
-*.sqlite
-*.sqlite3
-
 # Logs
 *.log
 
