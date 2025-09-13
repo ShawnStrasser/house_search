@@ -1,0 +1,539 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <div class="header">
+        <h1>🔧 Scoring Settings</h1>
+    </div>
+
+    <div class="controls">
+        <div class="settings-nav">
+            <a href="/" class="nav-button">
+                ⬅️ Back to Properties
+            </a>
+            <button type="button" class="nav-button" onclick="resetToDefaults()">
+                🔄 Reset to Defaults
+            </button>
+        </div>
+    </div>
+
+    <form id="weights-form" class="settings-form">
+        <div class="settings-sections">
+            <!-- Core Property Features -->
+            <div class="settings-section">
+                <h2>🏠 Core Property Features</h2>
+                <div class="settings-description">Adjust how much each property feature matters in scoring.</div>
+                <div class="weight-grid">
+                    <div class="weight-item">
+                        <label for="weight_price">💰 Price</label>
+                        <input type="range" id="weight_price" name="weight_price" 
+                               min="0" max="50" step="0.5" 
+                               value="{{ weights.price }}">
+                    </div>
+
+                    <div class="weight-item">
+                        <label for="weight_home_size_sqft">📐 Home Size</label>
+                        <input type="range" id="weight_home_size_sqft" name="weight_home_size_sqft" 
+                               min="0" max="20" step="0.5" 
+                               value="{{ weights.home_size_sqft }}">
+                    </div>
+
+                    <div class="weight-item">
+                        <label for="weight_lot_size_acres">🌳 Lot Size</label>
+                        <input type="range" id="weight_lot_size_acres" name="weight_lot_size_acres" 
+                               min="0" max="20" step="0.5" 
+                               value="{{ weights.lot_size_acres }}">
+                    </div>
+
+                    <div class="weight-item">
+                        <label for="weight_beds">🛏️ Bedrooms</label>
+                        <input type="range" id="weight_beds" name="weight_beds" 
+                               min="0" max="15" step="0.5" 
+                               value="{{ weights.beds }}">
+                    </div>
+
+                    <div class="weight-item">
+                        <label for="weight_baths">🚿 Bathrooms</label>
+                        <input type="range" id="weight_baths" name="weight_baths" 
+                               min="0" max="15" step="0.5" 
+                               value="{{ weights.baths }}">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Location & Accessibility -->
+            <div class="settings-section">
+                <h2>📍 Location & Accessibility</h2>
+                <div class="settings-description">How much location and access to amenities matters.</div>
+                <div class="weight-grid">
+                    <div class="weight-item">
+                        <label for="weight_drive_time">🛒 Grocery Drive Time</label>
+                        <input type="range" id="weight_drive_time" name="weight_drive_time" 
+                               min="0" max="20" step="0.5" 
+                               value="{{ weights.drive_time }}">
+                    </div>
+
+                    <div class="weight-item">
+                        <label for="weight_avg_school_rating">🎓 School Rating</label>
+                        <input type="range" id="weight_avg_school_rating" name="weight_avg_school_rating" 
+                               min="0" max="25" step="0.5" 
+                               value="{{ weights.avg_school_rating }}">
+                    </div>
+
+                    <div class="weight-item">
+                        <label for="weight_avg_school_distance">🚌 School Distance</label>
+                        <input type="range" id="weight_avg_school_distance" name="weight_avg_school_distance" 
+                               min="0" max="15" step="0.5" 
+                               value="{{ weights.avg_school_distance }}">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quality & Features -->
+            <div class="settings-section">
+                <h2>✨ Quality & Features</h2>
+                <div class="settings-description">Interior and special features importance.</div>
+                <div class="weight-grid">
+                    <div class="weight-item">
+                        <label for="weight_kitchen_quality">👩‍🍳 Kitchen Quality</label>
+                        <input type="range" id="weight_kitchen_quality" name="weight_kitchen_quality" 
+                               min="0" max="15" step="0.5" 
+                               value="{{ weights.kitchen_quality }}">
+                    </div>
+
+                    <div class="weight-item">
+                        <label for="weight_bathroom_quality">🛁 Bathroom Quality</label>
+                        <input type="range" id="weight_bathroom_quality" name="weight_bathroom_quality" 
+                               min="0" max="15" step="0.5" 
+                               value="{{ weights.bathroom_quality }}">
+                    </div>
+
+                    <div class="weight-item">
+                        <label for="weight_general_interior_quality">🏠 Interior Quality</label>
+                        <input type="range" id="weight_general_interior_quality" name="weight_general_interior_quality" 
+                               min="0" max="15" step="0.5" 
+                               value="{{ weights.general_interior_quality }}">
+                    </div>
+
+                    <div class="weight-item">
+                        <label for="weight_general_exterior_quality">🏡 Exterior Quality</label>
+                        <input type="range" id="weight_general_exterior_quality" name="weight_general_exterior_quality" 
+                               min="0" max="15" step="0.5" 
+                               value="{{ weights.general_exterior_quality }}">
+                    </div>
+
+                    <div class="weight-item">
+                        <label for="weight_house_style">🎨 House Style</label>
+                        <input type="range" id="weight_house_style" name="weight_house_style" 
+                               min="0" max="15" step="0.5" 
+                               value="{{ weights.house_style }}">
+                    </div>
+
+                    <div class="weight-item">
+                        <label for="weight_dedicated_office">💼 Dedicated Office</label>
+                        <input type="range" id="weight_dedicated_office" name="weight_dedicated_office" 
+                               min="0" max="25" step="0.5" 
+                               value="{{ weights.dedicated_office }}">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Property Characteristics -->
+            <div class="settings-section">
+                <h2>🌲 Property Characteristics</h2>
+                <div class="settings-description">Land and environmental features.</div>
+                <div class="weight-grid">
+                    <div class="weight-item">
+                        <label for="weight_privacy_level">🔒 Privacy Level</label>
+                        <input type="range" id="weight_privacy_level" name="weight_privacy_level" 
+                               min="0" max="20" step="0.5" 
+                               value="{{ weights.privacy_level }}">
+                    </div>
+
+                    <div class="weight-item">
+                        <label for="weight_view_rating">🌄 View Rating</label>
+                        <input type="range" id="weight_view_rating" name="weight_view_rating" 
+                               min="0" max="15" step="0.5" 
+                               value="{{ weights.view_rating }}">
+                    </div>
+
+                    <div class="weight-item">
+                        <label for="weight_land_usability">🌱 Land Usability</label>
+                        <input type="range" id="weight_land_usability" name="weight_land_usability" 
+                               min="0" max="15" step="0.5" 
+                               value="{{ weights.land_usability }}">
+                    </div>
+
+                    <div class="weight-item">
+                        <label for="weight_waterfront_quality">🌊 Waterfront Quality</label>
+                        <input type="range" id="weight_waterfront_quality" name="weight_waterfront_quality" 
+                               min="0" max="15" step="0.5" 
+                               value="{{ weights.waterfront_quality }}">
+                    </div>
+
+                    <div class="weight-item">
+                        <label for="weight_road_exposure">🛣️ Road Exposure</label>
+                        <input type="range" id="weight_road_exposure" name="weight_road_exposure" 
+                               min="0" max="20" step="0.5" 
+                               value="{{ weights.road_exposure }}">
+                    </div>
+
+                    <div class="weight-item">
+                        <label for="weight_vegetation_density">🌿 Vegetation Density</label>
+                        <input type="range" id="weight_vegetation_density" name="weight_vegetation_density" 
+                               min="0" max="15" step="0.5" 
+                               value="{{ weights.vegetation_density }}">
+                    </div>
+
+                    <div class="weight-item">
+                        <label for="weight_positive_features_score">⭐ Positive Features</label>
+                        <input type="range" id="weight_positive_features_score" name="weight_positive_features_score" 
+                               min="0" max="15" step="0.5" 
+                               value="{{ weights.positive_features_score }}">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Risk & Safety -->
+            <div class="settings-section">
+                <h2>⚠️ Risk & Safety</h2>
+                <div class="settings-description">How much you care about risks and safety concerns.</div>
+                <div class="weight-grid">
+                    <div class="weight-item">
+                        <label for="weight_avg_risk_severity">🌪️ Natural Risk</label>
+                        <input type="range" id="weight_avg_risk_severity" name="weight_avg_risk_severity" 
+                               min="0" max="20" step="0.5" 
+                               value="{{ weights.avg_risk_severity }}">
+                    </div>
+
+                    <div class="weight-item">
+                        <label for="weight_avg_crime_severity">🚨 Crime Level</label>
+                        <input type="range" id="weight_avg_crime_severity" name="weight_avg_crime_severity" 
+                               min="0" max="20" step="0.5" 
+                               value="{{ weights.avg_crime_severity }}">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="settings-actions">
+            <button type="submit" class="apply-button">
+                ✅ Apply Settings & View Properties
+            </button>
+            <div class="settings-info">
+                Higher values = more important. Weights are normalized automatically.
+            </div>
+        </div>
+    </form>
+
+    <!-- Advanced Scoring Parameters -->
+    <div class="settings-form advanced-section">
+        <div class="settings-section">
+            <h2>⚙️ Advanced Scoring Parameters</h2>
+            <div class="settings-description">Technical parameters that control how features are scored. Most users won't need to change these.</div>
+            <div class="params-grid">
+                <div class="param-item">
+                    <label>🏠 Small Home Size (sqft)</label>
+                    <div class="param-info">Properties under this size get partial points</div>
+                    <input type="number" value="{{ DEFAULT_SCORING_PARAMETERS.home_size_tier1_sqft }}" readonly>
+                </div>
+                
+                <div class="param-item">
+                    <label>🏰 Large Home Size (sqft)</label>
+                    <div class="param-info">Properties this size or larger get full points</div>
+                    <input type="number" value="{{ DEFAULT_SCORING_PARAMETERS.home_size_tier2_sqft }}" readonly>
+                </div>
+                
+                <div class="param-item">
+                    <label>🌳 Max Useful Lot Size (acres)</label>
+                    <div class="param-info">Lot sizes beyond this don't add more value</div>
+                    <input type="number" step="0.1" value="{{ DEFAULT_SCORING_PARAMETERS.lot_size_cap_acres }}" readonly>
+                </div>
+                
+                <div class="param-item">
+                    <label>🎓 Close School Distance (miles)</label>
+                    <div class="param-info">Schools this close get full distance points</div>
+                    <input type="number" step="0.1" value="{{ DEFAULT_SCORING_PARAMETERS.school_dist_full_points_miles }}" readonly>
+                </div>
+                
+                <div class="param-item">
+                    <label>🚌 Far School Distance (miles)</label>
+                    <div class="param-info">Schools this far get zero distance points</div>
+                    <input type="number" step="0.1" value="{{ DEFAULT_SCORING_PARAMETERS.school_dist_zero_points_miles }}" readonly>
+                </div>
+                
+                <div class="param-item">
+                    <label>🚨 Max Violent Crime Rate</label>
+                    <div class="param-info">Per 100k people - used for scaling</div>
+                    <input type="number" step="0.1" value="{{ DEFAULT_SCORING_PARAMETERS.max_violent_crime_100k }}" readonly>
+                </div>
+                
+                <div class="param-item">
+                    <label>🏠 Max Property Crime Rate</label>
+                    <div class="param-info">Per 100k people - used for scaling</div>
+                    <input type="number" step="0.1" value="{{ DEFAULT_SCORING_PARAMETERS.max_property_crime_100k }}" readonly>
+                </div>
+                
+                <div class="param-item">
+                    <label>🛒 Max Grocery Drive Time (min)</label>
+                    <div class="param-info">Drive times beyond this get zero points</div>
+                    <input type="number" step="0.1" value="{{ DEFAULT_SCORING_PARAMETERS.drive_time_max_minutes }}" readonly>
+                </div>
+            </div>
+            <div style="margin-top: 15px; padding: 10px; background: #f0f8ff; border-radius: 6px; font-size: 12px; color: #666;">
+                📖 <strong>Info:</strong> These parameters define the scoring curves and thresholds. They're set to reasonable defaults based on data analysis. 
+                Contact support if you need to modify these values.
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.settings-nav {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+}
+
+.nav-button {
+    padding: 10px 15px;
+    background: #667eea;
+    color: white;
+    text-decoration: none;
+    border-radius: 5px;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.2s;
+}
+
+.nav-button:hover {
+    background: #5a67d8;
+}
+
+.settings-form {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    overflow: hidden;
+    margin-bottom: 20px;
+}
+
+.settings-sections {
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+.settings-section {
+    border-bottom: 1px solid #e2e8f0;
+    padding: 20px;
+}
+
+.settings-section:last-child {
+    border-bottom: none;
+}
+
+.settings-section h2 {
+    margin-bottom: 8px;
+    color: #2d3748;
+    font-size: 18px;
+    border-bottom: 2px solid #667eea;
+    padding-bottom: 5px;
+}
+
+.settings-description {
+    font-size: 14px;
+    color: #666;
+    margin-bottom: 15px;
+    font-style: italic;
+}
+
+.weight-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+}
+
+.weight-item {
+    padding: 12px;
+    background: #f7fafc;
+    border-radius: 6px;
+    border: 1px solid #e2e8f0;
+}
+
+.weight-item label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+    color: #2d3748;
+    font-size: 14px;
+}
+
+.weight-item input[type="range"] {
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: #e2e8f0;
+    outline: none;
+    -webkit-appearance: none;
+}
+
+.weight-item input[type="range"]::-webkit-slider-thumb {
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #667eea;
+    cursor: pointer;
+    border: 2px solid white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.weight-item input[type="range"]::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #667eea;
+    cursor: pointer;
+    border: 2px solid white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.settings-actions {
+    padding: 20px;
+    background: #f8f9fa;
+    border-top: 1px solid #e2e8f0;
+    text-align: center;
+}
+
+.apply-button {
+    background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+    color: white;
+    border: none;
+    padding: 12px 30px;
+    font-size: 16px;
+    font-weight: 600;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: transform 0.2s;
+    margin-bottom: 10px;
+}
+
+.apply-button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+.settings-info {
+    font-size: 12px;
+    color: #666;
+    font-style: italic;
+}
+
+/* Advanced Parameters Section */
+.advanced-section {
+    margin-top: 20px;
+}
+
+.params-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 12px;
+}
+
+.param-item {
+    padding: 10px;
+    background: #fefefe;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+}
+
+.param-item label {
+    display: block;
+    font-weight: 500;
+    color: #2d3748;
+    font-size: 13px;
+    margin-bottom: 4px;
+}
+
+.param-info {
+    font-size: 11px;
+    color: #999;
+    margin-bottom: 6px;
+}
+
+.param-item input {
+    width: 100%;
+    padding: 4px 6px;
+    border: 1px solid #cbd5e0;
+    border-radius: 3px;
+    font-size: 12px;
+    background: #f9f9f9;
+    color: #666;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+    .weight-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .params-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .settings-nav {
+        justify-content: center;
+    }
+    
+    .nav-button {
+        flex: 1;
+        text-align: center;
+        min-width: 140px;
+    }
+    
+    .settings-sections {
+        max-height: 60vh;
+    }
+}
+</style>
+
+<script>
+// Reset to defaults
+function resetToDefaults() {
+    const defaults = {{ default_weights | tojson }};
+    for (const [key, value] of Object.entries(defaults)) {
+        const element = document.getElementById('weight_' + key);
+        if (element) {
+            element.value = value;
+        }
+    }
+}
+
+// Handle form submission
+document.getElementById('weights-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    // Build URL with weight parameters
+    const formData = new FormData(this);
+    const params = new URLSearchParams();
+    
+    // Add current non-weight parameters from URL if they exist
+    const currentUrl = new URLSearchParams(window.location.search);
+    for (const [key, value] of currentUrl.entries()) {
+        if (!key.startsWith('weight_')) {
+            params.append(key, value);
+        }
+    }
+    
+    // Add weight parameters
+    for (const [key, value] of formData.entries()) {
+        params.append(key, value);
+    }
+    
+    // Navigate to main page with parameters
+    window.location.href = '/?' + params.toString();
+});
+</script>
+{% endblock %}

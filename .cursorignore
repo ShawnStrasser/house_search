@@ -1,0 +1,23 @@
+# Ignore the not_used folder
+not_used/
+
+# Python cache
+__pycache__/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Jupyter checkpoints
+.ipynb_checkpoints
+
+# Large data files
+*.xlsx
+*.csv
+
+# Logs
+*.log
+
+# Environment files
+.env

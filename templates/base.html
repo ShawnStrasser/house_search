@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🏡 Property Scoring App</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 10px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 0;
+            margin-bottom: 20px;
+            border-radius: 8px;
+        }
+
+        .header h1 {
+            text-align: center;
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .controls {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #555;
+        }
+
+        .control-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+        }
+
+        input[type="password"], select, input[type="checkbox"] {
+            padding: 8px 12px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px; /* Prevent iOS zoom */
+            background: white;
+        }
+
+        input[type="password"]:focus, select:focus {
+            border-color: #667eea;
+            outline: none;
+        }
+
+        .checkbox-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .checkbox-item input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+        }
+
+        .btn {
+            background: #667eea;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn:hover {
+            background: #5a6fd8;
+        }
+
+        .success {
+            color: #28a745;
+            font-weight: 500;
+        }
+
+        .error {
+            color: #dc3545;
+            font-weight: 500;
+        }
+
+        .table-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .table-scroll {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        th {
+            background: #f8f9fa;
+            padding: 12px 8px;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 2px solid #dee2e6;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        /* Removed sorting functionality */
+
+        td {
+            padding: 10px 8px;
+            border-bottom: 1px solid #dee2e6;
+            vertical-align: middle;
+        }
+
+        tr:hover {
+            background-color: #f8f9fa;
+        }
+
+        .rating-select {
+            width: 100%;
+            min-width: 80px;
+            padding: 6px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            background: white;
+        }
+
+        .rating-select:focus {
+            border-color: #667eea;
+            outline: none;
+        }
+
+        .listing-link {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .listing-link:hover {
+            text-decoration: underline;
+        }
+
+        .score {
+            font-weight: 600;
+            color: #28a745;
+        }
+
+        .price {
+            font-weight: 500;
+            color: #333;
+        }
+
+        /* Mobile optimizations */
+        @media (max-width: 768px) {
+            .container {
+                padding: 5px;
+            }
+            
+            .header h1 {
+                font-size: 20px;
+            }
+            
+            .controls {
+                padding: 10px;
+            }
+            
+            table {
+                font-size: 12px;
+            }
+            
+            th, td {
+                padding: 8px 4px;
+            }
+            
+            .control-row {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .checkbox-group {
+                flex-direction: column;
+                gap: 8px;
+            }
+            
+            /* Better mobile layout for property details */
+            .property-details > div {
+                grid-template-columns: 1fr !important;
+                gap: 12px !important;
+            }
+            
+            .property-details h4 {
+                font-size: 14px !important;
+            }
+            
+            .property-details p {
+                font-size: 13px !important;
+            }
+            
+            /* Tighter column spacing on mobile */
+            th, td {
+                padding: 6px 2px !important;
+            }
+            
+            /* Wrap text in location column */
+            .location-cell {
+                word-wrap: break-word;
+                overflow-wrap: break-word;
+                max-width: 120px;
+                line-height: 1.3;
+            }
+        }
+
+        /* Hide less important columns on mobile */
+        @media (max-width: 600px) {
+            .hide-mobile {
+                display: none;
+            }
+        }
+        
+        /* Hide beds and baths on very small screens */
+        @media (max-width: 480px) {
+            .hide-very-small {
+                display: none;
+            }
+            
+            .show-on-very-small {
+                display: block !important;
+            }
+            
+            /* Even tighter spacing on very small screens */
+            th, td {
+                padding: 4px 1px !important;
+                font-size: 11px !important;
+            }
+            
+            .location-cell {
+                max-width: 90px;
+            }
+            
+            .price {
+                font-size: 11px !important;
+            }
+        }
+
+        /* Hide kitchen column on smaller screens */
+        @media (max-width: 768px) {
+            .hide-mobile-kitchen {
+                display: none;
+            }
+        }
+
+        /* Force rating column to be touch-friendly */
+        .rating-column {
+            width: 55px !important;
+            min-width: 55px !important;
+            max-width: 55px !important;
+            padding: 3px !important;
+        }
+
+        .rating-select {
+            width: 48px !important;
+            min-width: 48px !important;
+            max-width: 48px !important;
+            padding: 4px !important;
+            font-size: 13px !important;
+            border: 1px solid #ccc !important;
+            text-align: center !important;
+            border-radius: 4px !important;
+        }
+
+        .info-column {
+            width: 35px !important;
+            min-width: 35px !important;
+            max-width: 35px !important;
+            padding: 4px !important;
+        }
+
+        /* Make rating and info columns even more compact on small screens */
+        @media (max-width: 480px) {
+            .rating-column {
+                width: 45px !important;
+                min-width: 45px !important;
+                max-width: 45px !important;
+                padding: 2px !important;
+            }
+
+            .rating-select {
+                width: 40px !important;
+                min-width: 40px !important;
+                max-width: 40px !important;
+                padding: 2px !important;
+                font-size: 11px !important;
+            }
+
+            .info-column {
+                width: 30px !important;
+                min-width: 30px !important;
+                max-width: 30px !important;
+                padding: 2px !important;
+            }
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 40px 20px;
+            color: #666;
+            font-size: 16px;
+        }
+
+        /* Scroll to Top Button */
+        .scroll-to-top {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(20px);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 1000;
+            user-select: none;
+        }
+
+        .scroll-to-top.visible {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
+        .scroll-to-top:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .scroll-to-top:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+        }
+
+        /* Property details row styling */
+        .details-row td {
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+
+        .property-details {
+            max-width: 100%;
+            overflow-x: auto;
+        }
+
+        /* Mobile optimizations for scroll button */
+        @media (max-width: 768px) {
+            .scroll-to-top {
+                bottom: 20px;
+                right: 20px;
+                width: 48px;
+                height: 48px;
+                font-size: 18px;
+            }
+        }
+
+        /* For very small screens */
+        @media (max-width: 480px) {
+            .scroll-to-top {
+                bottom: 15px;
+                right: 15px;
+                width: 44px;
+                height: 44px;
+                font-size: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        {% block content %}{% endblock %}
+    </div>
+
+    <!-- Scroll to Top Button -->
+    <button class="scroll-to-top" id="scrollToTopBtn" title="Scroll to top" aria-label="Scroll to top">
+        ↑
+    </button>
+
+    <script>
+        // Handle rating updates
+        function updateRating(zpid, newRating, password) {
+            if (!password) {
+                alert('Password required to update ratings');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('zpid', zpid);
+            formData.append('rating', newRating);
+            formData.append('password', password);
+            
+            fetch('/update_rating', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Check if the new rating should be filtered out
+                    const currentFilters = getCurrentRatingFilters();
+                    const shouldShow = shouldShowRating(newRating, currentFilters);
+                    
+                    if (!shouldShow) {
+                        // Hide the row immediately
+                        const row = document.querySelector(`select[onchange*="${zpid}"]`).closest('tr');
+                        const detailsRow = document.getElementById(`details-${zpid}`);
+                        if (row) row.style.display = 'none';
+                        if (detailsRow) detailsRow.style.display = 'none';
+                    }
+                } else {
+                    alert('Error updating rating: ' + (data.error || 'Unknown error'));
+                    // Reset the select to previous value
+                    location.reload();
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error updating rating');
+                location.reload();
+            });
+        }
+
+        // Get current rating filter settings
+        function getCurrentRatingFilters() {
+            const filters = [];
+            if (document.getElementById('filter_yes').checked) filters.push('yes');
+            if (document.getElementById('filter_no').checked) filters.push('no');
+            if (document.getElementById('filter_maybe').checked) filters.push('maybe');
+            if (document.getElementById('filter_blank').checked) filters.push('blank');
+            return filters;
+        }
+
+        // Check if a rating should be shown based on current filters
+        function shouldShowRating(rating, filters) {
+            if (rating === '' || rating === null) {
+                return filters.includes('blank');
+            }
+            return filters.includes(rating);
+        }
+
+        // Sorting functionality removed for simplicity
+
+        // Handle filter updates
+        function updateFilters() {
+            const form = document.getElementById('filterForm');
+            form.submit();
+        }
+
+        // Track dirty notes
+        let dirtyNotes = new Set();
+
+        // Mark note as dirty (changed)
+        function markNoteDirty(zpid) {
+            dirtyNotes.add(zpid);
+            const statusDiv = document.getElementById('note-status-' + zpid);
+            if (statusDiv) {
+                statusDiv.textContent = 'Note changed - will be saved when you close this section.';
+                statusDiv.style.color = '#ff8c00';
+                statusDiv.style.fontWeight = '500';
+            }
+        }
+
+        // Save note to database
+        function saveNote(zpid, noteText, password) {
+            const formData = new FormData();
+            formData.append('zpid', zpid);
+            formData.append('note', noteText);
+            formData.append('password', password);
+            
+            return fetch('/update_note', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    dirtyNotes.delete(zpid);
+                    const statusDiv = document.getElementById('note-status-' + zpid);
+                    if (statusDiv) {
+                        statusDiv.textContent = '✅ Note saved successfully!';
+                        statusDiv.style.color = '#28a745';
+                        statusDiv.style.fontWeight = '500';
+                    }
+                    return true;
+                } else {
+                    const statusDiv = document.getElementById('note-status-' + zpid);
+                    if (statusDiv) {
+                        statusDiv.textContent = '❌ Error saving note: ' + (data.error || 'Unknown error');
+                        statusDiv.style.color = '#dc3545';
+                        statusDiv.style.fontWeight = '500';
+                    }
+                    return false;
+                }
+            })
+            .catch(error => {
+                console.error('Error saving note:', error);
+                const statusDiv = document.getElementById('note-status-' + zpid);
+                if (statusDiv) {
+                    statusDiv.textContent = '❌ Error saving note: Network error';
+                    statusDiv.style.color = '#dc3545';
+                    statusDiv.style.fontWeight = '500';
+                }
+                return false;
+            });
+        }
+
+        // Show/hide property details
+        function showDetails(zpid) {
+            const detailsRow = document.getElementById('details-' + zpid);
+            if (detailsRow.style.display === 'none' || detailsRow.style.display === '') {
+                detailsRow.style.display = 'table-row';
+                detailsRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            } else {
+                // Before closing, save any dirty notes
+                if (dirtyNotes.has(zpid)) {
+                    const noteTextarea = document.getElementById('note-' + zpid);
+                    const passwordInput = document.getElementById('password');
+                    
+                    if (noteTextarea && passwordInput && passwordInput.value) {
+                        const statusDiv = document.getElementById('note-status-' + zpid);
+                        if (statusDiv) {
+                            statusDiv.textContent = '💾 Saving note...';
+                            statusDiv.style.color = '#667eea';
+                            statusDiv.style.fontWeight = '500';
+                        }
+                        
+                        saveNote(zpid, noteTextarea.value, passwordInput.value).then(success => {
+                            if (success) {
+                                // Small delay to show success message before closing
+                                setTimeout(() => {
+                                    detailsRow.style.display = 'none';
+                                }, 1000);
+                            } else {
+                                // Don't close if save failed
+                            }
+                        });
+                    } else {
+                        detailsRow.style.display = 'none';
+                    }
+                } else {
+                    detailsRow.style.display = 'none';
+                }
+            }
+        }
+
+        // Mobile-friendly table scrolling indicator
+        document.addEventListener('DOMContentLoaded', function() {
+            const tableContainer = document.querySelector('.table-scroll');
+            if (tableContainer) {
+                function checkScroll() {
+                    const isScrolled = tableContainer.scrollLeft > 0;
+                    tableContainer.style.borderLeft = isScrolled ? '3px solid #667eea' : 'none';
+                }
+                
+                tableContainer.addEventListener('scroll', checkScroll);
+                checkScroll();
+            }
+
+            // Scroll to Top Button Functionality
+            const scrollToTopBtn = document.getElementById('scrollToTopBtn');
+            
+            // Show/hide button based on scroll position
+            function toggleScrollButton() {
+                if (window.pageYOffset > 200) {
+                    scrollToTopBtn.classList.add('visible');
+                } else {
+                    scrollToTopBtn.classList.remove('visible');
+                }
+            }
+
+            // Smooth scroll to top
+            function scrollToTop() {
+                window.scrollTo({
+                    top: 0,
+                    behavior: 'smooth'
+                });
+            }
+
+            // Event listeners
+            window.addEventListener('scroll', toggleScrollButton);
+            scrollToTopBtn.addEventListener('click', scrollToTop);
+
+            // Initial check
+            toggleScrollButton();
+        });
+    </script>
+</body>
+</html>

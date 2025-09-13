@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="header">
+    <h1>🏡 Property Scoring App</h1>
+</div>
+
+<div class="controls">
+    <div style="text-align: center; padding: 40px 20px;">
+        <h2 style="color: #dc3545; margin-bottom: 20px;">❌ Error</h2>
+        <p style="font-size: 16px; color: #666; margin-bottom: 20px;">{{ error }}</p>
+        <a href="/" class="btn">← Back to Properties</a>
+    </div>
+</div>
+
+<div class="table-container">
+    <div style="padding: 20px; text-align: center; color: #666;">
+        <h3>Troubleshooting Tips:</h3>
+        <ul style="text-align: left; display: inline-block; margin-top: 15px;">
+            <li>Ensure the database file <code>property_data.db</code> exists</li>
+            <li>Check that the <code>properties</code> and <code>property_features</code> tables exist</li>
+            <li>Verify your database connection settings</li>
+            <li>Try refreshing the page</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}
