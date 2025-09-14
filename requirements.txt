@@ -1,5 +1,7 @@
 Flask
 pandas
+numpy
+scipy
 duckdb
 gunicorn
 sqlitecloud
