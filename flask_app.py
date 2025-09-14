@@ -13,6 +13,7 @@ from config import (
     DRIVE_TIME_EMOJIS, RISK_EMOJIS, CRIME_EMOJIS,
     APP_CONFIG, DATABASE_CONFIG
 )
+from weight_optimizer import WeightOptimizer, create_weight_url_params
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -322,6 +323,33 @@ def generate_scoring_sql(weights: dict, params: dict, financing_filter: list = N
     SELECT
         ns.zpid,
         ({weighted_sum_sql}) - ({penalty_sum_sql if penalty_sum_sql else '0'}) AS total_score,
+        
+        -- Individual feature scores for weight optimization
+        ns.price_score,
+        ns.beds_score,
+        ns.baths_score,
+        ns.home_size_sqft_score,
+        ns.lot_size_acres_score,
+        ns.kitchen_quality_score,
+        ns.bathroom_quality_score,
+        ns.general_interior_quality_score,
+        ns.general_exterior_quality_score,
+        ns.house_style_score,
+        ns.privacy_level_score,
+        ns.view_rating_score,
+        ns.land_usability_score,
+        ns.waterfront_quality_score,
+        ns.road_exposure_score,
+        ns.vegetation_density_score,
+        ns.positive_features_score_score,
+        ns.dedicated_office_score,
+        ns.drive_time_score,
+        ns.avg_risk_severity_score,
+        ns.avg_school_rating_score,
+        ns.avg_school_distance_score,
+        ns.avg_crime_severity_score,
+        
+        -- Original property data
         bf.source_url,
         bf.county,
         bf.full_address,
@@ -426,6 +454,19 @@ def init_notes_db(_conn):
     )
     _conn.commit()
 
+def init_for_review_db(_conn):
+    """Ensures the for_review table exists."""
+    _conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS for_review (
+            zpid INTEGER PRIMARY KEY,
+            zillow_url TEXT NOT NULL,
+            added_at TEXT DEFAULT (datetime('now'))
+        )
+        """
+    )
+    _conn.commit()
+
 def load_ratings_dict(_conn):
     """Loads current ratings into a dictionary with zpid as key and rating as value.
     Avoids pandas.read_sql to support both sqlite3 and sqlitecloud connections.
@@ -504,9 +545,7 @@ def database_keepalive():
         result = conn.execute("SELECT datetime('now') as current_time").fetchone()
         current_time = result[0] if result else "unknown"
         
-        # Also ensure our tables exist (lightweight operation)
-        init_ratings_db(conn)
-        init_notes_db(conn)
+        # Tables are already initialized at startup, just run keepalive queries
         
         # Get a count of ratings as a meaningful keepalive query
         count_result = conn.execute("SELECT COUNT(*) FROM rating").fetchone()
@@ -517,6 +556,23 @@ def database_keepalive():
         
     except Exception as e:
         logger.error(f"Database keepalive failed: {e}")
+
+def initialize_databases():
+    """Initialize all database tables once at startup."""
+    if not RATINGS_DB_URL:
+        logger.info("Database initialization: RATINGS_DB_URL not set, skipping cloud database initialization")
+        return
+    
+    try:
+        logger.info("Initializing cloud database tables...")
+        ratings_conn = get_ratings_db_connection()
+        init_ratings_db(ratings_conn)
+        init_notes_db(ratings_conn)
+        init_for_review_db(ratings_conn)
+        ratings_conn.close()
+        logger.info("Cloud database tables initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize cloud database tables: {e}")
 
 def start_keepalive_thread():
     """Starts a background thread that runs database keepalive every 3 hours."""
@@ -583,8 +639,6 @@ def index():
         if password_correct:
             try:
                 ratings_conn = get_ratings_db_connection()
-                init_ratings_db(ratings_conn)
-                init_notes_db(ratings_conn)
                 ratings_dict = load_ratings_dict(ratings_conn)
                 notes_dict = load_notes_dict(ratings_conn)
                 ratings_conn.close()
@@ -669,6 +723,107 @@ def index():
         logger.error(f"Error in index route: {e}")
         return render_template('error.html', error=str(e))
 
+@app.route('/add_property', methods=['POST'])
+def add_property():
+    """Add a new property URL for review"""
+    password = request.form.get('password', '')
+    if password != CORRECT_PASSWORD:
+        return jsonify({'success': False, 'message': '❌ Invalid password'})
+    
+    zillow_url = request.form.get('zillow_url', '').strip()
+    zpid = request.form.get('zpid', '').strip()
+    
+    # Validate inputs
+    if not zillow_url or not zpid:
+        return jsonify({'success': False, 'message': '❌ Missing URL or property ID'})
+    
+    # Validate ZPID is numeric
+    try:
+        zpid_int = int(zpid)
+    except ValueError:
+        return jsonify({'success': False, 'message': '❌ Invalid property ID format'})
+    
+    try:
+        # Connect to both databases
+        ratings_conn = get_ratings_db_connection()
+        
+        # Check if ZPID already exists in properties table (local DuckDB)
+        local_conn = duckdb.connect(DB_PATH, read_only=True)
+        existing_property = local_conn.execute(
+            "SELECT p.zpid, c.violent_100k, c.property_100k, g.drive_time FROM properties p LEFT JOIN crime c ON p.zpid = c.zpid LEFT JOIN grocery g ON p.zpid = g.zpid WHERE p.zpid = ?", 
+            (zpid_int,)
+        ).fetchone()
+        local_conn.close()
+        
+        if existing_property:
+            # Property already exists - return crime and grocery info using existing functions
+            zpid_val, violent_crime, property_crime, drive_time = existing_property
+            
+            # Calculate average crime for emoji (same logic as main route)
+            if violent_crime is not None and property_crime is not None:
+                avg_crime_raw = (violent_crime * 2.0 + property_crime) / 3.0
+            else:
+                avg_crime_raw = None
+            
+            # Use existing crime emoji function - we need to calculate icon level
+            # This is simplified - in a real scenario you'd want to get the full dataset ranges
+            # For now, use a reasonable default mapping
+            if avg_crime_raw is not None:
+                # Simple mapping based on typical crime ranges (this could be improved)
+                if avg_crime_raw <= 1000:
+                    crime_icon_level = 4  # Low crime
+                elif avg_crime_raw <= 2000:
+                    crime_icon_level = 3
+                elif avg_crime_raw <= 3000:
+                    crime_icon_level = 2
+                elif avg_crime_raw <= 4000:
+                    crime_icon_level = 1
+                else:
+                    crime_icon_level = 0  # High crime
+            else:
+                crime_icon_level = None
+                
+            crime_emoji = get_crime_emoji(crime_icon_level)
+            
+            # Format drive time using existing color logic
+            if drive_time is not None:
+                drive_time_str = f"{drive_time}min"
+            else:
+                drive_time_str = "🚫 No data"
+            
+            message = f"✅ Property already exists! {crime_emoji} Crime | 🛒 {drive_time_str}"
+            ratings_conn.close()
+            return jsonify({'success': True, 'message': message})
+        
+        # Check if already in for_review table
+        existing_review = ratings_conn.execute(
+            "SELECT zpid FROM for_review WHERE zpid = ?", (zpid_int,)
+        ).fetchone()
+        
+        if existing_review:
+            ratings_conn.close()
+            return jsonify({'success': True, 'message': '✅ Property already added for review'})
+        
+        # Add to for_review table
+        ratings_conn.execute(
+            "INSERT INTO for_review (zpid, zillow_url, added_at) VALUES (?, ?, datetime('now'))",
+            (zpid_int, zillow_url)
+        )
+        ratings_conn.commit()
+        ratings_conn.close()
+        
+        return jsonify({
+            'success': True, 
+            'message': '✅ Property added for review at next update!'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error adding property: {e}")
+        return jsonify({
+            'success': False, 
+            'message': f'❌ Error: {str(e)}'
+        })
+
 @app.route('/update_rating', methods=['POST'])
 def update_rating():
     password = request.form.get('password', '')
@@ -680,7 +835,6 @@ def update_rating():
     
     try:
         ratings_conn = get_ratings_db_connection()
-        init_ratings_db(ratings_conn)
         save_rating(ratings_conn, zpid, rating)
         ratings_conn.close()
         
@@ -700,7 +854,6 @@ def update_note():
     
     try:
         notes_conn = get_ratings_db_connection()
-        init_notes_db(notes_conn)
         save_note(notes_conn, zpid, note)
         notes_conn.close()
         
@@ -771,7 +924,174 @@ def manual_keepalive():
             'timestamp': datetime.now().isoformat()
         })
 
-# Start the database keepalive thread when the app starts
+@app.route('/optimize_weights', methods=['POST'])
+def optimize_weights():
+    """Optimize feature weights based on user ratings using pairwise ranking loss"""
+    try:
+        # Password check
+        password = request.form.get('password', '')
+        if password != CORRECT_PASSWORD:
+            logger.warning("Unauthorized weight optimization attempt")
+            return jsonify({
+                'success': False, 
+                'error': 'Invalid password'
+            }), 403
+        
+        # Get current parameters and weights
+        params = DEFAULT_SCORING_PARAMETERS.copy()
+        current_weights = DEFAULT_FEATURE_WEIGHTS.copy()
+        
+        # Override weights with any provided parameters (for baseline)
+        for key in current_weights.keys():
+            param_value = request.form.get(f"weight_{key}")
+            if param_value:
+                try:
+                    current_weights[key] = float(param_value)
+                except ValueError:
+                    pass  # Keep default if invalid
+        
+        # Get financing filter from request
+        financing_filter = request.form.getlist('financing_filter')
+        if not financing_filter:
+            financing_filter = ['eligible']  # Default to eligible properties
+            
+        # Get rating filter from request
+        rating_filter = request.form.getlist('rating_filter')
+        if not rating_filter:
+            rating_filter = ['yes', 'maybe', 'blank']  # Default filters
+        
+        logger.info("Starting weight optimization process...")
+        
+        # Generate scoring SQL and get property data
+        norm_weights = normalize_weights(current_weights)
+        scoring_sql = generate_scoring_sql(norm_weights, params, financing_filter)
+        properties_df = get_scored_properties(scoring_sql)
+        
+        if len(properties_df) == 0:
+            return jsonify({
+                'success': False,
+                'error': 'No properties found for optimization'
+            })
+        
+        # Load ratings
+        try:
+            ratings_conn = get_ratings_db_connection()
+            ratings_dict = load_ratings_dict(ratings_conn)
+            ratings_conn.close()
+        except Exception as e:
+            logger.error(f"Could not load ratings for optimization: {e}")
+            return jsonify({
+                'success': False,
+                'error': f'Could not load ratings: {str(e)}'
+            })
+        
+        # Filter out blank ratings for optimization
+        filtered_ratings = {zpid: rating for zpid, rating in ratings_dict.items() 
+                          if rating in ['yes', 'maybe', 'no']}
+        
+        if len(filtered_ratings) < 10:
+            return jsonify({
+                'success': False,
+                'error': f'Insufficient ratings for optimization: {len(filtered_ratings)} < 10'
+            })
+        
+        # Run optimization with default aggressiveness (can be adjusted in weight_optimizer.py)
+        optimizer = WeightOptimizer()
+        
+        optimized_weights, info = optimizer.optimize_weights(properties_df, filtered_ratings)
+        
+        # Create URL parameters for optimized weights (no scaling - it breaks the optimization!)
+        weight_params = create_weight_url_params(optimized_weights)
+        
+        # Generate new property data with optimized weights for immediate display
+        new_properties_df = None
+        if info['success']:
+            try:
+                # Re-score properties with optimized weights
+                new_norm_weights = normalize_weights(optimized_weights)
+                new_scoring_sql = generate_scoring_sql(new_norm_weights, params, financing_filter)
+                new_properties_df = get_scored_properties(new_scoring_sql)
+                
+                # Add same enrichment as in main route
+                new_properties_df['rating'] = new_properties_df['zpid'].map(lambda x: filtered_ratings.get(x, ''))
+                new_properties_df['city_state'] = new_properties_df['full_address'].apply(extract_city_from_address)
+                new_properties_df['drive_time_color'] = new_properties_df['drive_time'].apply(get_drive_time_color)
+                new_properties_df['school_rating_color'] = new_properties_df['avg_school_rating'].apply(get_school_rating_color)
+                new_properties_df['risk_emoji'] = new_properties_df['avg_risk_severity'].apply(get_risk_emoji)
+                
+                # Crime emoji logic (simplified)
+                valid_crime_scores = new_properties_df['avg_crime_severity_raw'].dropna()
+                if len(valid_crime_scores) > 0:
+                    crime_min = valid_crime_scores.min()
+                    crime_max = valid_crime_scores.max()
+                    crime_range = crime_max - crime_min
+                    if crime_range > 0:
+                        new_properties_df['crime_icon_level'] = new_properties_df['avg_crime_severity_raw'].apply(
+                            lambda x: None if pd.isna(x) else 4 - min(4, int((x - crime_min) / crime_range * 5))
+                        )
+                    else:
+                        new_properties_df['crime_icon_level'] = new_properties_df['avg_crime_severity_raw'].apply(
+                            lambda x: None if pd.isna(x) else 2
+                        )
+                else:
+                    new_properties_df['crime_icon_level'] = None
+                    
+                new_properties_df['crime_emoji'] = new_properties_df['crime_icon_level'].apply(get_crime_emoji)
+                
+                # Apply rating filter - this should only affect display, not optimization
+                # The optimization should work on ALL properties, but we filter for display
+                allowed_ratings = set(rating_filter)
+                if 'blank' in allowed_ratings:
+                    allowed_ratings.add('')
+                new_properties_df = new_properties_df[new_properties_df['rating'].isin(allowed_ratings)]
+                
+                # Sort by total_score descending
+                new_properties_df = new_properties_df.sort_values(by='total_score', ascending=False)
+                
+                # Convert to dict for JSON response
+                properties_list = new_properties_df.to_dict('records')
+                
+                # Convert pandas NaN to None for JSON serialization
+                for prop in properties_list:
+                    for key, value in prop.items():
+                        if pd.isna(value):
+                            prop[key] = None
+                            
+            except Exception as e:
+                logger.error(f"Error generating new property data: {e}")
+                properties_list = None
+        
+        # Prepare response
+        response_data = {
+            'success': info['success'],
+            'optimized_weights': optimized_weights,
+            'weight_url_params': weight_params,
+            'optimization_info': info,
+            'properties': properties_list if info['success'] else None
+        }
+        
+        if info['success']:
+            logger.info(f"Weight optimization completed successfully. "
+                       f"Processed {info['n_ratings']} ratings, "
+                       f"{info['n_comparisons']} comparisons, "
+                       f"{info['n_iterations']} iterations.")
+        else:
+            logger.warning(f"Weight optimization failed: {info['message']}")
+        
+        return jsonify(response_data)
+        
+    except Exception as e:
+        logger.error(f"Weight optimization error: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'optimized_weights': DEFAULT_FEATURE_WEIGHTS.copy(),
+            'weight_url_params': create_weight_url_params(DEFAULT_FEATURE_WEIGHTS),
+            'redirect_url': request.url_root
+        }), 500
+
+# Initialize databases and start the keepalive thread when the app starts
+initialize_databases()
 start_keepalive_thread()
 
 if __name__ == '__main__':

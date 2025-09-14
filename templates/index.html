@@ -8,21 +8,30 @@
 <div class="controls">
     <form id="filterForm" method="GET">
         <!-- Password input -->
+        {% if not password_correct %}
         <div class="control-group">
             <label for="password">Password (for editing ratings):</label>
             <div class="control-row">
                 <input type="text" id="password" name="password" 
                        value="{{ request.args.get('password', '') }}" 
-                       placeholder="Enter password" maxlength="4">
+                       placeholder="Enter password" maxlength="4"
+                       oninput="savePassword()"
+                       onchange="updateFilters()"
+                       onkeypress="if(event.key==='Enter') updateFilters()">
                 {% if request.args.get('password') %}
-                    {% if password_correct %}
-                        <span class="success">✅ Edit access granted</span>
-                    {% else %}
-                        <span class="error">❌ Incorrect password</span>
-                    {% endif %}
+                    <span class="error">❌ Incorrect password</span>
                 {% endif %}
             </div>
         </div>
+        {% else %}
+        <!-- Hidden authenticated state -->
+        <input type="hidden" id="password" name="password" value="{{ request.args.get('password', '') }}">
+        <div class="control-group">
+            <div style="text-align: center; color: #28a745; font-weight: 500;">
+                ✅ Authenticated - editing enabled
+            </div>
+        </div>
+        {% endif %}
 
         <!-- Settings Link -->
         <div class="control-group">
@@ -33,6 +42,30 @@
                 <span class="settings-hint">Customize how properties are scored and ranked</span>
             </div>
         </div>
+
+        <!-- AI Ranking Toggle -->
+        <div class="control-group">
+            <div class="ai-ranking-container">
+                <div class="toggle-container">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="aiRankingToggle" onchange="toggleAIRanking()" {% if not password_correct %}disabled{% endif %}>
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <div class="toggle-label">
+                        <strong>🤖 AI Ranking</strong>
+                        <span class="toggle-description" id="toggleDescription">
+                            {% if password_correct %}
+                                Auto-update rankings based on your ratings
+                            {% else %}
+                                Auto-update rankings (requires login)
+                            {% endif %}
+                        </span>
+                    </div>
+                </div>
+                <div id="aiRankingStatus" class="ai-ranking-status"></div>
+            </div>
+        </div>
+
 
         <!-- Financing eligibility filter -->
         <div class="control-group">
@@ -87,6 +120,16 @@
                            onchange="updateFilters()">
                     <label for="filter_blank">⚪ Blank</label>
                 </div>
+            </div>
+        </div>
+
+        <!-- Add New Property Button -->
+        <div class="control-group">
+            <div class="add-property-container">
+                <button type="button" onclick="showAddPropertyModal()" class="add-property-btn" {% if not password_correct %}disabled title="Login required to add properties"{% endif %}>
+                    ➕ Add New Property
+                </button>
+                <span class="add-property-hint">Submit a Zillow URL for review</span>
             </div>
         </div>
 
@@ -270,8 +313,24 @@
     {% endif %}
 </div>
 
-<!-- Property details modal/expandable section would go here if needed -->
-<!-- For now, keeping it simple as requested -->
+<!-- Add Property Modal -->
+<div id="addPropertyModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>➕ Add New Property</h3>
+            <span class="close" onclick="closeAddPropertyModal()">&times;</span>
+        </div>
+        <div class="modal-body">
+            <label for="zillowUrl">Paste Zillow URL:</label>
+            <input type="url" id="zillowUrl" placeholder="https://www.zillow.com/homedetails/..." />
+            <div id="urlStatus" style="margin-top: 8px; font-size: 12px; min-height: 16px;"></div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="modal-btn modal-btn-secondary" onclick="closeAddPropertyModal()">Cancel</button>
+            <button type="button" class="modal-btn modal-btn-primary" onclick="submitProperty()" id="submitBtn">Add Property</button>
+        </div>
+    </div>
+</div>
 
 <style>
 .settings-link-container {
@@ -307,6 +366,253 @@
     text-align: center;
 }
 
+
+.ai-ranking-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.toggle-container {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 60px;
+    height: 34px;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: 0.3s;
+    border-radius: 34px;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 26px;
+    width: 26px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    transition: 0.3s;
+    border-radius: 50%;
+}
+
+input:checked + .toggle-slider {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+}
+
+input:checked + .toggle-slider:before {
+    transform: translateX(26px);
+}
+
+input:disabled + .toggle-slider {
+    background-color: #e0e0e0;
+    cursor: not-allowed;
+}
+
+input:disabled + .toggle-slider:before {
+    background-color: #f5f5f5;
+}
+
+input:disabled:checked + .toggle-slider {
+    background-color: #c8e6c9;
+}
+
+.toggle-label {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.toggle-description {
+    font-size: 12px;
+    color: #666;
+    font-style: italic;
+    max-width: 250px;
+}
+
+.ai-ranking-status {
+    font-size: 12px;
+    font-weight: 500;
+    text-align: center;
+    min-height: 16px;
+}
+
+.add-property-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+}
+
+.add-property-btn {
+    display: inline-block;
+    padding: 10px 20px;
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-weight: 500;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.add-property-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+.add-property-btn:disabled {
+    background: #e0e0e0;
+    color: #999;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.add-property-hint {
+    font-size: 12px;
+    color: #666;
+    font-style: italic;
+    text-align: center;
+}
+
+/* Modal styles */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+}
+
+.modal-content {
+    background-color: #fefefe;
+    margin: 10% auto;
+    padding: 20px;
+    border: none;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 500px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #eee;
+}
+
+.modal-header h3 {
+    margin: 0;
+    color: #333;
+}
+
+.close {
+    color: #aaa;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.close:hover,
+.close:focus {
+    color: #000;
+}
+
+.modal-body {
+    margin-bottom: 20px;
+}
+
+.modal-body label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+    color: #333;
+}
+
+.modal-body input[type="url"] {
+    width: 100%;
+    padding: 10px;
+    border: 2px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    box-sizing: border-box;
+}
+
+.modal-body input[type="url"]:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.modal-btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.modal-btn-primary {
+    background: #667eea;
+    color: white;
+}
+
+.modal-btn-primary:hover {
+    background: #5a6fd8;
+}
+
+.modal-btn-secondary {
+    background: #6c757d;
+    color: white;
+}
+
+.modal-btn-secondary:hover {
+    background: #5a6268;
+}
+
+.modal-btn:disabled {
+    background: #e0e0e0;
+    color: #999;
+    cursor: not-allowed;
+}
+
 @media (max-width: 768px) {
     .settings-link-container {
         align-items: stretch;
@@ -316,12 +622,108 @@
         text-align: center;
         padding: 12px 15px;
     }
+    
+    .toggle-container {
+        flex-direction: column;
+        gap: 10px;
+        align-items: center;
+    }
+    
+    .toggle-label {
+        text-align: center;
+    }
+    
+    .toggle-description {
+        max-width: 300px;
+    }
+    
+    .add-property-container {
+        align-items: stretch;
+    }
+    
+    .add-property-btn {
+        text-align: center;
+        padding: 12px 15px;
+    }
+    
+    .modal-content {
+        margin: 5% auto;
+        width: 95%;
+    }
 }
 </style>
 
 <script>
+// AI Ranking state management
+let aiRankingEnabled = false; // Default to OFF
+let isOptimizing = false;
+
+function toggleAIRanking() {
+    const toggle = document.getElementById('aiRankingToggle');
+    const description = document.getElementById('toggleDescription');
+    const status = document.getElementById('aiRankingStatus');
+    
+    // Don't change anything if disabled (non-authenticated users)
+    if (toggle.disabled) {
+        return;
+    }
+    
+    const wasEnabled = aiRankingEnabled;
+    aiRankingEnabled = toggle.checked;
+    
+    // Update UI
+    if (aiRankingEnabled) {
+        description.textContent = 'Rankings update automatically based on your ratings';
+        status.textContent = '';
+        
+        // If we just turned ON AI ranking, trigger optimization immediately
+        if (!wasEnabled && !isOptimizing) {
+            status.textContent = '🚀 AI Ranking activated! Optimizing...';
+            status.style.color = '#667eea';
+            triggerAutoOptimization();
+        }
+    } else {
+        description.textContent = 'Auto-update rankings based on your ratings';
+        status.textContent = '';
+    }
+    
+    // Save preference
+    localStorage.setItem('aiRankingEnabled', aiRankingEnabled.toString());
+}
+
+function initializeAIRanking() {
+    const toggle = document.getElementById('aiRankingToggle');
+    if (!toggle) return;
+    
+    // For non-authenticated users, keep toggle disabled and unchecked (default OFF)
+    if (toggle.disabled) {
+        aiRankingEnabled = false; // Default state OFF
+        toggle.checked = false;
+        return;
+    }
+    
+    // Load saved preference for authenticated users (default to OFF if no preference)
+    const saved = localStorage.getItem('aiRankingEnabled');
+    if (saved !== null) {
+        aiRankingEnabled = saved === 'true';
+    } else {
+        aiRankingEnabled = false; // Default to OFF
+    }
+    
+    toggle.checked = aiRankingEnabled;
+    
+    // Update UI based on current state (without triggering optimization)
+    const description = document.getElementById('toggleDescription');
+    
+    if (aiRankingEnabled) {
+        description.textContent = 'Rankings update automatically based on your ratings';
+    } else {
+        description.textContent = 'Auto-update rankings based on your ratings';
+    }
+}
+
 function goToSettings() {
-    // Build URL with current weight parameters and password
+    // Build URL with current parameters (weights, filters, password)
     const currentParams = new URLSearchParams(window.location.search);
     const settingsParams = new URLSearchParams();
     
@@ -331,17 +733,414 @@ function goToSettings() {
         settingsParams.append('password', passwordValue);
     }
     
-    // Transfer current weight parameters to settings URL
-    {% if current_weights %}
-        {% for key, value in current_weights.items() %}
-        settingsParams.append('weight_{{ key }}', '{{ value }}');
-        {% endfor %}
-    {% endif %}
+    // Transfer ALL current parameters to settings URL (not just weights)
+    for (const [key, value] of currentParams.entries()) {
+        settingsParams.append(key, value);
+    }
     
     // Navigate to settings
     const url = '/settings' + (settingsParams.toString() ? '?' + settingsParams.toString() : '');
     window.location.href = url;
 }
+
+function triggerAutoOptimization() {
+    if (isOptimizing) return; // Prevent multiple simultaneous optimizations
+    
+    const passwordInput = document.getElementById('password');
+    const password = passwordInput.value;
+    
+    if (!password) return; // Can't optimize without password
+    
+    isOptimizing = true;
+    const statusDiv = document.getElementById('aiRankingStatus');
+    
+    // Show subtle loading indicator
+    statusDiv.textContent = '🔄 Updating rankings...';
+    statusDiv.style.color = '#667eea';
+    
+    // Add subtle loading effect to table
+    const tableContainer = document.querySelector('.table-container');
+    if (tableContainer) {
+        tableContainer.style.opacity = '0.8';
+        tableContainer.style.transition = 'opacity 0.3s ease';
+    }
+    
+    // Prepare form data
+    const formData = new FormData();
+    formData.append('password', password);
+    
+    // Add current weight parameters from URL
+    const currentParams = new URLSearchParams(window.location.search);
+    for (const [key, value] of currentParams.entries()) {
+        if (key.startsWith('weight_')) {
+            formData.append(key, value);
+        }
+    }
+    
+    // Add financing filter
+    const financingCheckboxes = document.querySelectorAll('input[name="financing_filter"]:checked');
+    financingCheckboxes.forEach(checkbox => {
+        formData.append('financing_filter', checkbox.value);
+    });
+    
+    // Add current rating filters
+    const ratingCheckboxes = document.querySelectorAll('input[name="rating_filter"]:checked');
+    ratingCheckboxes.forEach(checkbox => {
+        formData.append('rating_filter', checkbox.value);
+    });
+    
+    // Send optimization request
+    fetch('/optimize_weights', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        isOptimizing = false;
+        
+        // Restore table opacity
+        if (tableContainer) {
+            tableContainer.style.opacity = '1';
+        }
+        
+        if (data.success) {
+            statusDiv.textContent = '✅ Rankings updated!';
+            statusDiv.style.color = '#28a745';
+            
+            // Update the URL with new weights (silently, no reload)
+            const currentUrl = new URL(window.location);
+            const params = new URLSearchParams(data.weight_url_params);
+            for (const [key, value] of params.entries()) {
+                currentUrl.searchParams.set(key, value);
+            }
+            window.history.replaceState({}, '', currentUrl.toString());
+            
+            // Update the properties table with new data
+            if (data.properties) {
+                updatePropertiesTable(data.properties);
+            }
+            
+            // Clear status after a delay
+            setTimeout(() => {
+                statusDiv.textContent = '';
+            }, 3000);
+        } else {
+            if (data.error.includes('Insufficient ratings')) {
+                statusDiv.textContent = 'Need more ratings for AI ranking';
+                statusDiv.style.color = '#ff8c00';
+            } else {
+                statusDiv.textContent = 'AI ranking temporarily unavailable';
+                statusDiv.style.color = '#dc3545';
+            }
+            
+            // Clear status after a delay
+            setTimeout(() => {
+                statusDiv.textContent = '';
+            }, 5000);
+        }
+    })
+    .catch(error => {
+        console.error('Auto-optimization error:', error);
+        isOptimizing = false;
+        
+        // Restore table opacity
+        if (tableContainer) {
+            tableContainer.style.opacity = '1';
+        }
+        
+        statusDiv.textContent = 'AI ranking temporarily unavailable';
+        statusDiv.style.color = '#dc3545';
+        
+        // Clear status after a delay
+        setTimeout(() => {
+            statusDiv.textContent = '';
+        }, 5000);
+    });
+}
+
+
+function updatePropertiesTable(properties) {
+    // Find the table body
+    const tableBody = document.querySelector('table tbody');
+    if (!tableBody) {
+        console.error('Could not find table body');
+        return;
+    }
+    
+    // Add subtle fade effect during update
+    const tableContainer = document.querySelector('.table-container');
+    if (tableContainer) {
+        tableContainer.style.opacity = '0.7';
+        tableContainer.style.transition = 'opacity 0.3s ease';
+    }
+    
+    // Clear current content
+    tableBody.innerHTML = '';
+    
+    // Rebuild table rows with new data - matching exact template structure
+    properties.forEach((property, index) => {
+        // Create main property row
+        const row = document.createElement('tr');
+        
+        row.innerHTML = `
+            <td class="rating-column">
+                <select class="rating-select" 
+                        onchange="updateRating(${property.zpid}, this.value, document.getElementById('password').value)">
+                    <option value="" ${property.rating === '' ? 'selected' : ''}>-</option>
+                    <option value="yes" ${property.rating === 'yes' ? 'selected' : ''}>✅</option>
+                    <option value="maybe" ${property.rating === 'maybe' ? 'selected' : ''}>🤔</option>
+                    <option value="no" ${property.rating === 'no' ? 'selected' : ''}>❌</option>
+                </select>
+            </td>
+            <td class="info-column" style="text-align: center;">
+                <span class="info-icon" onclick="showDetails(${property.zpid})" 
+                      style="cursor: pointer; font-size: 16px; color: #667eea;" 
+                      title="Click for property details">
+                    ℹ️
+                </span>
+            </td>
+            <td class="location-cell">
+                <a href="${property.source_url || '#'}" target="_blank" class="listing-link">
+                    ${property.city_state || 'View Listing'}
+                </a>
+            </td>
+            <td class="price">$${property.price ? property.price.toLocaleString() : 'N/A'}</td>
+            <td style="text-align: center;" title="School rating (1-10 scale)">
+                ${property.avg_school_rating ? 
+                    `<span style="color: ${property.school_rating_color || '#999'}; font-weight: bold;">${Math.round(property.avg_school_rating * 10) / 10}</span>` : 
+                    '<span style="color: #999999;">-</span>'}
+            </td>
+            <td style="text-align: center; font-size: 18px;" title="Crime level: ${property.crime_emoji || '❓'}">
+                ${property.crime_emoji || '❓'}
+            </td>
+            <td style="text-align: center;" title="Drive time to grocery store in minutes">
+                ${property.drive_time ? 
+                    `<span style="color: ${property.drive_time_color || '#999'}; font-weight: bold;">${property.drive_time}min</span>` : 
+                    '<span style="color: #DC143C; font-size: 16px;">🚫</span>'}
+            </td>
+            <td class="hide-very-small">${property.beds || '-'}</td>
+            <td class="hide-very-small">${property.baths || '-'}</td>
+            <td class="hide-mobile">${property.home_size_sqft ? property.home_size_sqft.toLocaleString() : '-'}</td>
+            <td class="hide-mobile">${property.lot_size_acres ? Math.round(property.lot_size_acres * 10) / 10 : '-'}</td>
+            <td class="hide-mobile-kitchen">${property.kitchen_quality || '-'}</td>
+            <td class="hide-mobile">${property.bathroom_quality || '-'}</td>
+            <td class="hide-mobile">${property.general_interior_quality || '-'}</td>
+            <td class="hide-mobile">${property.privacy_level || '-'}</td>
+        `;
+        
+        tableBody.appendChild(row);
+        
+        // Create details row (initially hidden) - matching template structure
+        const detailsRow = document.createElement('tr');
+        detailsRow.id = `details-${property.zpid}`;
+        detailsRow.style.display = 'none';
+        
+        detailsRow.innerHTML = `
+            <td colspan="15">
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 6px; margin: 5px 0;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; margin-bottom: 15px;">
+                        <div>
+                            <h4 style="margin: 0 0 8px 0; color: #667eea;">✨ Positive Features</h4>
+                            <p style="margin: 0; font-size: 14px;">${property.positive_features_list || 'No special features noted'}</p>
+                        </div>
+                        ${property.negative_features_list ? `
+                        <div>
+                            <h4 style="margin: 0 0 8px 0; color: #667eea;">⚠️ Negative Features</h4>
+                            <p style="margin: 0; font-size: 14px;">${property.negative_features_list}</p>
+                        </div>
+                        ` : ''}
+                        <div>
+                            <h4 style="margin: 0 0 8px 0; color: #667eea;">🛒 Grocery Store</h4>
+                            <p style="margin: 0; font-size: 14px;">
+                                ${property.grocery_name ? 
+                                    `${property.grocery_name} - ${property.drive_time || '?'} min drive` +
+                                    (property.grocery_rating ? `<br><small>(${property.grocery_rating}★ rating${property.grocery_ratings_count ? ` from ${property.grocery_ratings_count} reviews` : ''})</small>` : '')
+                                : '<span style="color: #DC143C;">🚫 No grocery information available</span>'}
+                            </p>
+                        </div>
+                        <div>
+                            <h4 style="margin: 0 0 8px 0; color: #667eea;">📍 Full Address</h4>
+                            <p style="margin: 0; font-size: 14px;">${property.full_address || 'Address not available'}</p>
+                        </div>
+                    </div>
+                    <div style="margin-top: 10px; text-align: right;">
+                        <button onclick="showDetails(${property.zpid})" 
+                                style="background: #667eea; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">
+                            Close
+                        </button>
+                    </div>
+                </div>
+            </td>
+        `;
+        
+        tableBody.appendChild(detailsRow);
+    });
+    
+    // Restore opacity after update
+    setTimeout(() => {
+        if (tableContainer) {
+            tableContainer.style.opacity = '1';
+        }
+    }, 100);
+    
+    console.log(`Updated table with ${properties.length} properties`);
+}
+
+// Check if we just returned from settings and show notification
+function checkForSettingsReturn() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const hasWeightParams = Array.from(urlParams.keys()).some(key => key.startsWith('weight_'));
+    
+    if (hasWeightParams) {
+        // Check if AI ranking was turned off due to manual weights
+        const aiRankingEnabled = localStorage.getItem('aiRankingEnabled') === 'true';
+        if (!aiRankingEnabled) {
+            const statusDiv = document.getElementById('aiRankingStatus');
+            if (statusDiv) {
+                statusDiv.textContent = '⚙️ Manual weights applied - AI Ranking off';
+                statusDiv.style.color = '#ff8c00';
+                
+                // Clear notification after delay
+                setTimeout(() => {
+                    statusDiv.textContent = '';
+                }, 5000);
+            }
+        }
+    }
+}
+
+// Add Property Modal Functions
+function showAddPropertyModal() {
+    const modal = document.getElementById('addPropertyModal');
+    const urlInput = document.getElementById('zillowUrl');
+    const statusDiv = document.getElementById('urlStatus');
+    const submitBtn = document.getElementById('submitBtn');
+    
+    // Reset modal state
+    urlInput.value = '';
+    statusDiv.textContent = '';
+    statusDiv.style.color = '';
+    
+    // Reset submit button to default state
+    submitBtn.textContent = 'Add Property';
+    submitBtn.disabled = false;
+    submitBtn.onclick = function() { submitProperty(); };
+    
+    // Show modal
+    modal.style.display = 'block';
+    
+    // Focus on input
+    setTimeout(() => urlInput.focus(), 100);
+}
+
+function closeAddPropertyModal() {
+    const modal = document.getElementById('addPropertyModal');
+    modal.style.display = 'none';
+}
+
+function extractZpidFromUrl(url) {
+    // Extract ZPID from Zillow URL
+    // Example: https://www.zillow.com/homedetails/23131-N-Poe-Valley-Rd-Klamath-Falls-OR-97603/75163204_zpid/?utm_campaign=androidappmessage&utm_medium=referral&utm_source=txtshare
+    const zpidMatch = url.match(/\/(\d+)_zpid/);
+    return zpidMatch ? zpidMatch[1] : null;
+}
+
+function submitProperty() {
+    const urlInput = document.getElementById('zillowUrl');
+    const statusDiv = document.getElementById('urlStatus');
+    const submitBtn = document.getElementById('submitBtn');
+    const passwordInput = document.getElementById('password');
+    
+    const url = urlInput.value.trim();
+    const password = passwordInput.value;
+    
+    // Validate URL
+    if (!url) {
+        statusDiv.textContent = '❌ Please enter a Zillow URL';
+        statusDiv.style.color = '#dc3545';
+        return;
+    }
+    
+    // Check if it's a Zillow URL
+    if (!url.includes('zillow.com')) {
+        statusDiv.textContent = '❌ Please enter a valid Zillow URL';
+        statusDiv.style.color = '#dc3545';
+        return;
+    }
+    
+    // Extract ZPID
+    const zpid = extractZpidFromUrl(url);
+    if (!zpid) {
+        statusDiv.textContent = '❌ Could not extract property ID from URL';
+        statusDiv.style.color = '#dc3545';
+        return;
+    }
+    
+    // Show loading state
+    statusDiv.textContent = '🔄 Processing...';
+    statusDiv.style.color = '#667eea';
+    submitBtn.disabled = true;
+    
+    // Submit to server
+    const formData = new FormData();
+    formData.append('zillow_url', url);
+    formData.append('zpid', zpid);
+    formData.append('password', password);
+    
+    fetch('/add_property', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        submitBtn.disabled = false;
+        
+        if (data.success) {
+            statusDiv.textContent = data.message;
+            statusDiv.style.color = '#28a745';
+            
+            // Check if this is a "property already exists" message
+            if (data.message.includes('Property already exists')) {
+                // Change submit button to "OK" for property exists case
+                submitBtn.textContent = 'OK';
+                submitBtn.onclick = function() {
+                    closeAddPropertyModal();
+                    // Reset button for next use
+                    submitBtn.textContent = 'Add Property';
+                    submitBtn.onclick = function() { submitProperty(); };
+                };
+            } else {
+                // For "added for review" messages, close after delay
+                setTimeout(() => {
+                    closeAddPropertyModal();
+                }, 2000);
+            }
+        } else {
+            statusDiv.textContent = data.message || '❌ Error adding property';
+            statusDiv.style.color = '#dc3545';
+        }
+    })
+    .catch(error => {
+        console.error('Error adding property:', error);
+        submitBtn.disabled = false;
+        statusDiv.textContent = '❌ Network error. Please try again.';
+        statusDiv.style.color = '#dc3545';
+    });
+}
+
+// Close modal when clicking outside
+window.onclick = function(event) {
+    const modal = document.getElementById('addPropertyModal');
+    if (event.target === modal) {
+        closeAddPropertyModal();
+    }
+}
+
+// Initialize AI ranking toggle on page load
+document.addEventListener('DOMContentLoaded', function() {
+    initializeAIRanking();
+    checkForSettingsReturn();
+});
 </script>
 
 {% endblock %}

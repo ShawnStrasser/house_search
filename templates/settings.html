@@ -222,6 +222,8 @@
             </button>
             <div class="settings-info">
                 Higher values = more important. Weights are normalized automatically.
+                <br>
+                <strong>Note:</strong> Applying manual weights turns off AI Ranking.
             </div>
         </div>
     </form>
@@ -529,6 +531,9 @@ function resetToDefaults() {
 // Handle form submission
 document.getElementById('weights-form').addEventListener('submit', function(e) {
     e.preventDefault();
+    
+    // Turn off AI ranking when manual weights are applied
+    localStorage.setItem('aiRankingEnabled', 'false');
     
     // Build URL with weight parameters
     const formData = new FormData(this);

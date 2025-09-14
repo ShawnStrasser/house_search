@@ -475,6 +475,11 @@
                         if (row) row.style.display = 'none';
                         if (detailsRow) detailsRow.style.display = 'none';
                     }
+                    
+                    // Trigger automatic weight optimization if AI ranking is enabled
+                    if (typeof aiRankingEnabled !== 'undefined' && aiRankingEnabled && !isOptimizing) {
+                        triggerAutoOptimization();
+                    }
                 } else {
                     alert('Error updating rating: ' + (data.error || 'Unknown error'));
                     // Reset the select to previous value
@@ -506,11 +511,38 @@
             return filters.includes(rating);
         }
 
+        // Filter properties array based on current rating filters
+        function filterPropertiesByRating(properties) {
+            const currentFilters = getCurrentRatingFilters();
+            return properties.filter(property => {
+                return shouldShowRating(property.rating, currentFilters);
+            });
+        }
+
         // Sorting functionality removed for simplicity
 
         // Handle filter updates
         function updateFilters() {
             const form = document.getElementById('filterForm');
+            
+            // Preserve all current URL parameters by adding them as hidden inputs
+            const urlParams = new URLSearchParams(window.location.search);
+            
+            // Remove existing hidden weight inputs to avoid duplicates
+            const existingHiddenInputs = form.querySelectorAll('input[type="hidden"][name^="weight_"]');
+            existingHiddenInputs.forEach(input => input.remove());
+            
+            // Add current weight parameters as hidden inputs
+            for (const [key, value] of urlParams.entries()) {
+                if (key.startsWith('weight_')) {
+                    const hiddenInput = document.createElement('input');
+                    hiddenInput.type = 'hidden';
+                    hiddenInput.name = key;
+                    hiddenInput.value = value;
+                    form.appendChild(hiddenInput);
+                }
+            }
+            
             form.submit();
         }
 
@@ -611,8 +643,36 @@
             }
         }
 
+        // Automatic authentication with saved password
+        function savePassword() {
+            const passwordField = document.getElementById('password');
+            if (passwordField && passwordField.value) {
+                localStorage.setItem('saved_password', passwordField.value);
+            }
+        }
+        
+        function autoAuthenticate() {
+            const savedPassword = localStorage.getItem('saved_password');
+            const currentUrl = new URL(window.location);
+            
+            // If we have a saved password but no password in URL, redirect with password
+            if (savedPassword && !currentUrl.searchParams.get('password')) {
+                currentUrl.searchParams.set('password', savedPassword);
+                window.location.href = currentUrl.toString();
+                return;
+            }
+            
+            // If password field exists and is empty, fill it from storage
+            const passwordField = document.getElementById('password');
+            if (passwordField && savedPassword && !passwordField.value) {
+                passwordField.value = savedPassword;
+            }
+        }
+
         // Mobile-friendly table scrolling indicator
         document.addEventListener('DOMContentLoaded', function() {
+            // Auto-authenticate if password is saved
+            autoAuthenticate();
             const tableContainer = document.querySelector('.table-scroll');
             if (tableContainer) {
                 function checkScroll() {
@@ -646,7 +706,9 @@
 
             // Event listeners
             window.addEventListener('scroll', toggleScrollButton);
-            scrollToTopBtn.addEventListener('click', scrollToTop);
+            if (scrollToTopBtn) {
+                scrollToTopBtn.addEventListener('click', scrollToTop);
+            }
 
             // Initial check
             toggleScrollButton();
