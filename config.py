@@ -37,7 +37,7 @@ DEFAULT_FEATURE_WEIGHTS = {
     "view_rating": 3,
     "land_usability": 4,
     "waterfront_quality": 3,
-    "road_exposure": 8,            # Lower road exposure is better
+    "road_exposure": 8,            # Higher road exposure is better (5=private road, 1=highway)
     "vegetation_density": 2,
     "positive_features_score": 2,  # Renamed from unusual_features_rating
     

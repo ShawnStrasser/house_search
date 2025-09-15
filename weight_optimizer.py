@@ -202,9 +202,9 @@ class WeightOptimizer:
             feature_scores = feature_matrix[:, i]
             
             # Handle negative features (where higher values are worse)
-            # Negative features in DEFAULT_FEATURE_WEIGHTS: road_exposure, avg_risk_severity, avg_crime_severity, avg_school_distance, drive_time
+            # Negative features in DEFAULT_FEATURE_WEIGHTS: avg_risk_severity, avg_crime_severity, avg_school_distance, drive_time
             # For these, we want to invert the scoring when the weight is positive
-            negative_features = {'road_exposure', 'avg_risk_severity', 'avg_crime_severity', 'avg_school_distance', 'drive_time'}
+            negative_features = {'avg_risk_severity', 'avg_crime_severity', 'avg_school_distance', 'drive_time'}
             
             if feature_name in negative_features:
                 # For negative features, flip the score when weight is positive
