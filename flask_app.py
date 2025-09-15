@@ -624,6 +624,15 @@ def index():
         if not financing_filter:
             financing_filter = ['eligible']  # Default to only eligible properties
         
+        # Get aggressiveness parameter
+        aggressiveness = request.args.get('optimizer_aggressiveness', '0.4')
+        try:
+            aggressiveness = float(aggressiveness)
+            # Clamp to valid range
+            aggressiveness = max(0.1, min(0.9, aggressiveness))
+        except ValueError:
+            aggressiveness = 0.4
+        
         # Password check
         password = request.args.get('password', '')
         password_correct = password == CORRECT_PASSWORD
@@ -717,6 +726,7 @@ def index():
                              rating_filter=rating_filter,
                              financing_filter=financing_filter,
                              current_weights=weights,
+                             aggressiveness=aggressiveness,
                              request=request)
                              
     except Exception as e:
@@ -960,7 +970,16 @@ def optimize_weights():
         if not rating_filter:
             rating_filter = ['yes', 'maybe', 'blank']  # Default filters
         
-        logger.info("Starting weight optimization process...")
+        # Get aggressiveness parameter
+        aggressiveness = request.form.get('optimizer_aggressiveness', '0.4')
+        try:
+            aggressiveness = float(aggressiveness)
+            # Clamp to valid range
+            aggressiveness = max(0.1, min(0.9, aggressiveness))
+        except ValueError:
+            aggressiveness = 0.4
+        
+        logger.info(f"Starting weight optimization process with aggressiveness={aggressiveness}...")
         
         # Generate scoring SQL and get property data
         norm_weights = normalize_weights(current_weights)
@@ -995,8 +1014,8 @@ def optimize_weights():
                 'error': f'Insufficient ratings for optimization: {len(filtered_ratings)} < 10'
             })
         
-        # Run optimization with default aggressiveness (can be adjusted in weight_optimizer.py)
-        optimizer = WeightOptimizer()
+        # Run optimization with user-provided aggressiveness
+        optimizer = WeightOptimizer(aggressiveness=aggressiveness)
         
         optimized_weights, info = optimizer.optimize_weights(properties_df, filtered_ratings)
         

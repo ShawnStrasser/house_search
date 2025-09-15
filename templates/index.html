@@ -63,6 +63,31 @@
                     </div>
                 </div>
                 <div id="aiRankingStatus" class="ai-ranking-status"></div>
+                
+                <!-- Aggressiveness Control (shown when AI Ranking is enabled) -->
+                <div id="aggressivenessControl" class="aggressiveness-control" style="display: none;">
+                    <div class="aggressiveness-item">
+                        <label for="aiAggressiveness">🎯 Learning Aggressiveness</label>
+                        <div class="aggressiveness-slider-container">
+                            <input type="range" id="aiAggressiveness" name="aiAggressiveness" 
+                                   min="0.1" max="0.9" step="0.1" 
+                                   value="{{ aggressiveness }}" oninput="updateAIAggressivenessLabel(this.value); triggerAutoOptimization()">
+                            <div class="aggressiveness-labels">
+                                <span class="aggressiveness-label conservative">Conservative</span>
+                                <span class="aggressiveness-label moderate">Moderate</span>
+                                <span class="aggressiveness-label aggressive">Aggressive</span>
+                            </div>
+                            <div class="aggressiveness-value" id="aiAggressivenessValue">{{ aggressiveness }} ({% if aggressiveness <= 0.3 %}Conservative{% elif aggressiveness <= 0.6 %}Moderate{% else %}Aggressive{% endif %})</div>
+                        </div>
+                        <div class="aggressiveness-description">
+                            <div class="aggressiveness-explanation">
+                                <strong>Conservative:</strong> Less risk of overfitting, may underfit to your preferences
+                                <br><strong>Moderate:</strong> Balanced approach - recommended for most users
+                                <br><strong>Aggressive:</strong> Fits closely to your ratings, higher overfitting risk
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -499,6 +524,109 @@ input:disabled:checked + .toggle-slider {
     text-align: center;
 }
 
+/* Aggressiveness Control Styles for Index Page */
+.aggressiveness-control {
+    margin-top: 15px;
+    max-width: 500px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.aggressiveness-item {
+    padding: 15px;
+    background: #f7fafc;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+}
+
+.aggressiveness-item label {
+    display: block;
+    margin-bottom: 12px;
+    font-weight: 600;
+    color: #2d3748;
+    font-size: 14px;
+}
+
+.aggressiveness-slider-container {
+    margin-bottom: 12px;
+}
+
+.aggressiveness-slider-container input[type="range"] {
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: linear-gradient(to right, #e53e3e 0%, #f6ad55 50%, #38a169 100%);
+    outline: none;
+    -webkit-appearance: none;
+    margin-bottom: 8px;
+}
+
+.aggressiveness-slider-container input[type="range"]::-webkit-slider-thumb {
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #667eea;
+    cursor: pointer;
+    border: 2px solid white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.aggressiveness-slider-container input[type="range"]::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #667eea;
+    cursor: pointer;
+    border: 2px solid white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.aggressiveness-labels {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+
+.aggressiveness-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: #666;
+}
+
+.aggressiveness-label.conservative {
+    color: #e53e3e;
+}
+
+.aggressiveness-label.moderate {
+    color: #f6ad55;
+}
+
+.aggressiveness-label.aggressive {
+    color: #38a169;
+}
+
+.aggressiveness-value {
+    text-align: center;
+    font-weight: 600;
+    color: #667eea;
+    font-size: 13px;
+    margin-bottom: 10px;
+}
+
+.aggressiveness-description {
+    background: #f0f8ff;
+    border-radius: 4px;
+    padding: 8px;
+    border-left: 3px solid #667eea;
+}
+
+.aggressiveness-explanation {
+    font-size: 11px;
+    color: #4a5568;
+    line-height: 1.4;
+}
+
 /* Modal styles */
 .modal {
     display: none;
@@ -657,11 +785,13 @@ input:disabled:checked + .toggle-slider {
 // AI Ranking state management
 let aiRankingEnabled = false; // Default to OFF
 let isOptimizing = false;
+let optimizationTimeout = null; // For debouncing slider changes
 
 function toggleAIRanking() {
     const toggle = document.getElementById('aiRankingToggle');
     const description = document.getElementById('toggleDescription');
     const status = document.getElementById('aiRankingStatus');
+    const aggressivenessControl = document.getElementById('aggressivenessControl');
     
     // Don't change anything if disabled (non-authenticated users)
     if (toggle.disabled) {
@@ -675,6 +805,7 @@ function toggleAIRanking() {
     if (aiRankingEnabled) {
         description.textContent = 'Rankings update automatically based on your ratings';
         status.textContent = '';
+        aggressivenessControl.style.display = 'block';
         
         // If we just turned ON AI ranking, trigger optimization immediately
         if (!wasEnabled && !isOptimizing) {
@@ -685,10 +816,27 @@ function toggleAIRanking() {
     } else {
         description.textContent = 'Auto-update rankings based on your ratings';
         status.textContent = '';
+        aggressivenessControl.style.display = 'none';
     }
     
     // Save preference
     localStorage.setItem('aiRankingEnabled', aiRankingEnabled.toString());
+}
+
+function updateAIAggressivenessLabel(value) {
+    const valueElement = document.getElementById('aiAggressivenessValue');
+    const numValue = parseFloat(value);
+    
+    let label = '';
+    if (numValue <= 0.3) {
+        label = 'Conservative';
+    } else if (numValue <= 0.6) {
+        label = 'Moderate';
+    } else {
+        label = 'Aggressive';
+    }
+    
+    valueElement.textContent = `${value} (${label})`;
 }
 
 function initializeAIRanking() {
@@ -714,11 +862,14 @@ function initializeAIRanking() {
     
     // Update UI based on current state (without triggering optimization)
     const description = document.getElementById('toggleDescription');
+    const aggressivenessControl = document.getElementById('aggressivenessControl');
     
     if (aiRankingEnabled) {
         description.textContent = 'Rankings update automatically based on your ratings';
+        aggressivenessControl.style.display = 'block';
     } else {
         description.textContent = 'Auto-update rankings based on your ratings';
+        aggressivenessControl.style.display = 'none';
     }
 }
 
@@ -744,6 +895,20 @@ function goToSettings() {
 }
 
 function triggerAutoOptimization() {
+    if (isOptimizing) return; // Prevent multiple simultaneous optimizations
+    
+    // Clear any existing timeout
+    if (optimizationTimeout) {
+        clearTimeout(optimizationTimeout);
+    }
+    
+    // Debounce the optimization call by 500ms
+    optimizationTimeout = setTimeout(() => {
+        performOptimization();
+    }, 500);
+}
+
+function performOptimization() {
     if (isOptimizing) return; // Prevent multiple simultaneous optimizations
     
     const passwordInput = document.getElementById('password');
@@ -789,6 +954,12 @@ function triggerAutoOptimization() {
         formData.append('rating_filter', checkbox.value);
     });
     
+    // Add aggressiveness parameter
+    const aggressivenessSlider = document.getElementById('aiAggressiveness');
+    if (aggressivenessSlider) {
+        formData.append('optimizer_aggressiveness', aggressivenessSlider.value);
+    }
+    
     // Send optimization request
     fetch('/optimize_weights', {
         method: 'POST',
@@ -807,12 +978,19 @@ function triggerAutoOptimization() {
             statusDiv.textContent = '✅ Rankings updated!';
             statusDiv.style.color = '#28a745';
             
-            // Update the URL with new weights (silently, no reload)
+            // Update the URL with new weights and aggressiveness (silently, no reload)
             const currentUrl = new URL(window.location);
             const params = new URLSearchParams(data.weight_url_params);
             for (const [key, value] of params.entries()) {
                 currentUrl.searchParams.set(key, value);
             }
+            
+            // Also update aggressiveness in URL
+            const aggressivenessSlider = document.getElementById('aiAggressiveness');
+            if (aggressivenessSlider) {
+                currentUrl.searchParams.set('optimizer_aggressiveness', aggressivenessSlider.value);
+            }
+            
             window.history.replaceState({}, '', currentUrl.toString());
             
             // Update the properties table with new data
