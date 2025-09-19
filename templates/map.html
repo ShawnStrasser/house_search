@@ -722,7 +722,7 @@ function showPropertyModal(property) {
                     ${window.passwordCorrect ? `
                     <div class="rating-container">
                         <label for="modal-rating-${property.zpid}">Your Rating:</label>
-                        <select id="modal-rating-${property.zpid}" class="modal-rating-select" onchange="updateRatingFromModal(${property.zpid}, this.value)">
+                        <select id="modal-rating-${property.zpid}" class="modal-rating-select" data-zpid="${property.zpid}">
                             <option value="" ${property.rating === '' ? 'selected' : ''}>-</option>
                             <option value="yes" ${property.rating === 'yes' ? 'selected' : ''}>✅ Yes</option>
                             <option value="maybe" ${property.rating === 'maybe' ? 'selected' : ''}>🤔 Maybe</option>
@@ -766,6 +766,16 @@ function showPropertyModal(property) {
     }
     
     modal.style.display = 'flex';
+    
+    // Add event delegation for rating changes in the modal
+    const ratingSelect = document.getElementById('modal-rating-' + property.zpid);
+    if (ratingSelect) {
+        ratingSelect.addEventListener('change', function() {
+            const zpid = this.getAttribute('data-zpid');
+            const newRating = this.value;
+            updateRatingFromModal(zpid, newRating);
+        });
+    }
     
     // Prevent body scrolling when modal is open
     document.body.style.overflow = 'hidden';
@@ -957,26 +967,15 @@ function updateFilters() {
 
 // Handle rating updates from modal
 function updateRatingFromModal(zpid, newRating) {
-    // Get password from the hidden field or visible field
-    const passwordField = document.getElementById('password');
-    const password = passwordField ? passwordField.value : '';
+    // Get password the same way as the table view
+    const password = document.getElementById('password').value;
     
-    console.log('Updating rating for zpid:', zpid, 'newRating:', newRating, 'password length:', password ? password.length : 0);
-    console.log('Password field found:', !!passwordField, 'Password field type:', passwordField ? passwordField.type : 'none');
-    
-    if (!password) {
-        console.error('No password found - cannot update rating');
-        alert('Password required to update ratings. Please refresh the page and enter your password.');
-        return;
-    }
-    
+    // Call the same updateRating function that works in the table view
     updateRating(zpid, newRating, password);
 }
 
 // Handle rating updates (same as base template but also update marker)
 function updateRating(zpid, newRating, password) {
-    console.log('updateRating called with:', { zpid, newRating, password: password ? '***' : 'empty' });
-    
     if (!password) {
         alert('Password required to update ratings');
         return;
@@ -987,20 +986,13 @@ function updateRating(zpid, newRating, password) {
     formData.append('rating', newRating);
     formData.append('password', password);
     
-    console.log('Sending rating update request...');
-    
     fetch('/update_rating', {
         method: 'POST',
         body: formData
     })
-    .then(response => {
-        console.log('Response status:', response.status);
-        return response.json();
-    })
+    .then(response => response.json())
     .then(data => {
-        console.log('Response data:', data);
         if (data.success) {
-            console.log('Rating update successful');
             // Update the property data
             const properties = window.propertiesData || [];
             const property = properties.find(p => p.zpid === zpid);
@@ -1021,7 +1013,6 @@ function updateRating(zpid, newRating, password) {
                 addPropertyMarkers(properties);
             }
         } else {
-            console.error('Rating update failed:', data.error);
             alert('Error updating rating: ' + (data.error || 'Unknown error'));
             location.reload();
         }
