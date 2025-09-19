@@ -918,20 +918,32 @@ def add_property():
 @app.route('/update_rating', methods=['POST'])
 def update_rating():
     password = request.form.get('password', '')
-    if password != CORRECT_PASSWORD:
-        return jsonify({'success': False, 'error': 'Invalid password'})
-    
     zpid = request.form.get('zpid')
     rating = request.form.get('rating')
     
+    logger.info(f"Rating update request: zpid={zpid}, rating={rating}, password_length={len(password) if password else 0}")
+    
+    if password != CORRECT_PASSWORD:
+        logger.warning(f"Invalid password for rating update: zpid={zpid}")
+        return jsonify({'success': False, 'error': 'Invalid password'})
+    
+    if not zpid:
+        logger.error("Missing zpid in rating update request")
+        return jsonify({'success': False, 'error': 'Missing property ID'})
+    
     try:
+        if not RATINGS_DB_URL:
+            logger.warning("RATINGS_DB_URL not set - rating update not possible")
+            return jsonify({'success': False, 'error': 'Database not configured. Please set RATINGS_DB_URL environment variable.'})
+        
         ratings_conn = get_ratings_db_connection()
         save_rating(ratings_conn, zpid, rating)
         ratings_conn.close()
         
+        logger.info(f"Successfully updated rating for zpid={zpid} to rating={rating}")
         return jsonify({'success': True})
     except Exception as e:
-        logger.error(f"Error updating rating: {e}")
+        logger.error(f"Error updating rating for zpid={zpid}: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/update_note', methods=['POST'])
@@ -944,6 +956,10 @@ def update_note():
     note = request.form.get('note', '')
     
     try:
+        if not RATINGS_DB_URL:
+            logger.warning("RATINGS_DB_URL not set - note update not possible")
+            return jsonify({'success': False, 'error': 'Database not configured. Please set RATINGS_DB_URL environment variable.'})
+        
         notes_conn = get_ratings_db_connection()
         save_note(notes_conn, zpid, note)
         notes_conn.close()
