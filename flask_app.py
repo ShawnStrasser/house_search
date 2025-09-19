@@ -412,19 +412,9 @@ def get_scored_properties(sql_query):
     """Execute scoring query and return DataFrame"""
     conn = duckdb.connect(DB_PATH, read_only=True)
     try:
-        logger.info("=== DUCKDB QUERY EXECUTION DEBUG ===")
         logger.info(f"DuckDB version: {duckdb.__version__}")
-        logger.info(f"Database path: {DB_PATH}")
-        logger.info(f"Database file size: {os.path.getsize(DB_PATH) if os.path.exists(DB_PATH) else 'File not found'}")
-        
-        # Log environment info
-        import platform
-        logger.info(f"Platform: {platform.platform()}")
-        logger.info(f"Python version: {platform.python_version()}")
-        
-        logger.info("Executing DuckDB query...")
         result_df = conn.execute(sql_query).df()
-        logger.info(f"DuckDB query executed successfully, returned {len(result_df)} rows")
+        logger.info(f"Query success: {len(result_df)} rows")
         return result_df
     except Exception as e:
         logger.error(f"=== DUCKDB QUERY EXECUTION FAILED ===")
@@ -437,47 +427,29 @@ def get_scored_properties(sql_query):
         logger.error(sql_query)
         logger.error("=== END QUERY ===")
         
-        # Try to identify the specific issue by testing parts of the query
+        # Test a simplified query to isolate the problematic expression
         try:
-            logger.info("=== DIAGNOSTIC TESTS ===")
+            # Test if it's the WITH clause or a specific expression
+            simple_test = "SELECT p.zpid, p.price FROM properties p LIMIT 5"
+            conn.execute(simple_test).fetchall()
+            logger.error("Simple query works - issue is in complex expression")
             
-            # Test basic table access
-            tables_to_test = ['properties', 'property_features', 'crime', 'grocery', 'location']
-            for table in tables_to_test:
-                try:
-                    count = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
-                    logger.info(f"✓ Table {table} accessible with {count} records")
-                    
-                    # Get table schema
-                    schema = conn.execute(f"DESCRIBE {table}").fetchall()
-                    logger.info(f"✓ Table {table} schema: {schema}")
-                    
-                except Exception as table_error:
-                    logger.error(f"✗ Table {table} access failed: {table_error}")
+            # Test the base_features CTE without complex expressions
+            base_test = """
+            WITH base_features AS (
+                SELECT p.zpid, p.price, pf.beds, pf.baths
+                FROM properties p 
+                LEFT JOIN property_features pf ON p.zpid = pf.zpid
+                LIMIT 5
+            ) SELECT * FROM base_features
+            """
+            conn.execute(base_test).fetchall()
+            logger.error("Base CTE works - issue is in scoring expressions")
             
-            # Test progressive complexity
-            test_queries = [
-                "SELECT COUNT(*) FROM properties",
-                "SELECT p.zpid FROM properties p LIMIT 5",
-                "SELECT p.zpid, pf.full_address FROM properties p LEFT JOIN property_features pf ON p.zpid = pf.zpid LIMIT 5",
-                "SELECT p.zpid, pf.full_address, c.violent_100k FROM properties p LEFT JOIN property_features pf ON p.zpid = pf.zpid LEFT JOIN crime c ON p.zpid = c.zpid LIMIT 5",
-                "SELECT p.zpid, pf.full_address, c.violent_100k, g.drive_time FROM properties p LEFT JOIN property_features pf ON p.zpid = pf.zpid LEFT JOIN crime c ON p.zpid = c.zpid LEFT JOIN grocery g ON p.zpid = g.zpid LIMIT 5",
-                "SELECT p.zpid, pf.full_address, c.violent_100k, g.drive_time, l.latitude FROM properties p LEFT JOIN property_features pf ON p.zpid = pf.zpid LEFT JOIN crime c ON p.zpid = c.zpid LEFT JOIN grocery g ON p.zpid = g.zpid LEFT JOIN location l ON p.zpid = l.zpid LIMIT 5"
-            ]
-            
-            for i, test_query in enumerate(test_queries):
-                try:
-                    result = conn.execute(test_query).fetchall()
-                    logger.info(f"✓ Test query {i+1} succeeded: {len(result)} rows")
-                except Exception as test_error:
-                    logger.error(f"✗ Test query {i+1} failed: {test_error}")
-                    logger.error(f"✗ Failed query: {test_query}")
-                    break
-            
-        except Exception as debug_error:
-            logger.error(f"Diagnostic testing failed: {debug_error}")
+        except Exception as test_error:
+            logger.error(f"Simplified test failed: {test_error}")
         
-        raise e  # Re-raise the original exception
+        raise e
     finally:
         conn.close()
 
@@ -671,8 +643,6 @@ def start_keepalive_thread():
 @app.route('/')
 def index():
     try:
-        logger.info("=== INDEX ROUTE DEBUG START ===")
-        
         # Get parameters from request
         params = DEFAULT_SCORING_PARAMETERS.copy()
         weights = DEFAULT_FEATURE_WEIGHTS.copy()
@@ -716,53 +686,10 @@ def index():
         password = request.args.get('password', '')
         password_correct = password == CORRECT_PASSWORD
         
-        logger.info(f"Database path: {DB_PATH}")
-        logger.info(f"Database exists: {os.path.exists(DB_PATH)}")
-        
-        # Debug: Check database tables and structure
-        try:
-            conn = duckdb.connect(DB_PATH, read_only=True)
-            logger.info("Successfully connected to DuckDB")
-            
-            # Check available tables
-            tables_result = conn.execute("SHOW TABLES").fetchall()
-            available_tables = [table[0] for table in tables_result]
-            logger.info(f"Available tables: {available_tables}")
-            
-            # Check if location table exists and has data
-            if 'location' in available_tables:
-                location_count = conn.execute("SELECT COUNT(*) FROM location").fetchone()[0]
-                logger.info(f"Location table has {location_count} records")
-                
-                # Check a sample of location data
-                sample_location = conn.execute("SELECT zpid, latitude, longitude FROM location LIMIT 5").fetchall()
-                logger.info(f"Sample location data: {sample_location}")
-            else:
-                logger.warning("Location table does not exist!")
-            
-            # Check other key tables
-            for table in ['properties', 'property_features', 'crime', 'grocery']:
-                if table in available_tables:
-                    count = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
-                    logger.info(f"Table {table} has {count} records")
-                else:
-                    logger.warning(f"Table {table} does not exist!")
-            
-            conn.close()
-        except Exception as db_debug_error:
-            logger.error(f"Database debug error: {db_debug_error}")
-        
         # Generate and execute query
-        logger.info("Generating scoring SQL...")
         norm_weights = normalize_weights(weights)
         scoring_sql = generate_scoring_sql(norm_weights, params, financing_filter)
-        
-        # Log the first 500 characters of the SQL for debugging
-        logger.info(f"Generated SQL (first 500 chars): {scoring_sql[:500]}...")
-        
-        logger.info("Executing scoring query...")
         results_df = get_scored_properties(scoring_sql)
-        logger.info(f"Query executed successfully, got {len(results_df)} results")
         
         # Load ratings and notes
         ratings_dict = {}
