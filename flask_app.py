@@ -777,7 +777,7 @@ def index():
         
         # Calculate score range for slider
         if len(results_df) > 0:
-            score_min = float(results_df['total_score'].min())
+            score_min = 0.0  # Always start from 0, not the minimum score
             score_max = float(results_df['total_score'].max())
         else:
             score_min, score_max = 0.0, 100.0
@@ -1089,7 +1089,7 @@ def map_view():
         
         # Calculate score range for slider
         if len(results_df) > 0:
-            score_min = float(results_df['total_score'].min())
+            score_min = 0.0  # Always start from 0, not the minimum score
             score_max = float(results_df['total_score'].max())
         else:
             score_min, score_max = 0.0, 100.0
@@ -1302,7 +1302,7 @@ def optimize_weights():
                 
                 # Calculate score range for slider update
                 if len(new_properties_df) > 0:
-                    score_min = float(new_properties_df['total_score'].min())
+                    score_min = 0.0  # Always start from 0, not the minimum score
                     score_max = float(new_properties_df['total_score'].max())
                 else:
                     score_min, score_max = 0.0, 100.0

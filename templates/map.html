@@ -729,6 +729,24 @@ function showPropertyModal(property) {
                             <option value="no" ${property.rating === 'no' ? 'selected' : ''}>❌ No</option>
                         </select>
                     </div>
+                    <div class="notes-container" style="margin-top: 15px;">
+                        <label for="modal-note-${property.zpid}" style="display: block; margin-bottom: 5px; font-weight: 500; color: #667eea;">📝 Personal Notes:</label>
+                        <textarea id="modal-note-${property.zpid}" 
+                                  placeholder="Add your personal notes about this property..."
+                                  style="width: 100%; min-height: 80px; padding: 8px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px; font-family: inherit; resize: vertical; box-sizing: border-box;"
+                                  onchange="markNoteDirtyModal(${property.zpid})"
+                                  oninput="markNoteDirtyModal(${property.zpid})">${property.note || ''}</textarea>
+                        <div style="margin-top: 8px; display: flex; justify-content: space-between; align-items: center;">
+                            <div id="modal-note-status-${property.zpid}" style="font-size: 12px; color: #666; min-height: 16px;">
+                                Notes will be saved automatically when you close this modal.
+                            </div>
+                            <button id="modal-save-note-${property.zpid}" 
+                                    onclick="saveNoteManually(${property.zpid})"
+                                    style="background: #667eea; color: white; border: none; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; display: none;">
+                                💾 Save Note
+                            </button>
+                        </div>
+                    </div>
                     ` : ''}
                 </div>
             </div>
@@ -745,11 +763,152 @@ function showPropertyModal(property) {
 }
 
 function closePropertyModal() {
+    // Save any dirty notes before closing
+    if (window.passwordCorrect && typeof dirtyNotesModal !== 'undefined' && dirtyNotesModal.size > 0) {
+        const password = document.getElementById('password').value;
+        if (password) {
+            // Save all dirty notes in modal
+            const savePromises = [];
+            dirtyNotesModal.forEach(zpid => {
+                const noteTextarea = document.getElementById('modal-note-' + zpid);
+                if (noteTextarea) {
+                    const noteText = noteTextarea.value.trim();
+                    savePromises.push(saveNoteModal(zpid, noteText, password));
+                }
+            });
+            
+            // Wait for all saves to complete before closing
+            if (savePromises.length > 0) {
+                Promise.all(savePromises).then(() => {
+                    closeModal();
+                });
+                return;
+            }
+        }
+    }
+    
+    closeModal();
+}
+
+function closeModal() {
     const modal = document.getElementById('propertyModal');
     modal.style.display = 'none';
     
     // Restore body scrolling
     document.body.style.overflow = 'auto';
+}
+
+// Note functionality for modal
+let dirtyNotesModal = new Set();
+
+// Mark note as dirty in modal
+function markNoteDirtyModal(zpid) {
+    dirtyNotesModal.add(zpid);
+    const statusDiv = document.getElementById('modal-note-status-' + zpid);
+    const saveButton = document.getElementById('modal-save-note-' + zpid);
+    if (statusDiv) {
+        statusDiv.textContent = 'Note changed - will be saved when you close this modal.';
+        statusDiv.style.color = '#ff8c00';
+        statusDiv.style.fontWeight = '500';
+    }
+    if (saveButton) {
+        saveButton.style.display = 'block';
+    }
+}
+
+// Save note from modal
+function saveNoteModal(zpid, noteText, password) {
+    const formData = new FormData();
+    formData.append('zpid', zpid);
+    formData.append('note', noteText);
+    formData.append('password', password);
+    
+    return fetch('/update_note', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            dirtyNotesModal.delete(zpid);
+            
+            // Update the property data in memory so the note shows immediately
+            const properties = window.propertiesData || [];
+            const property = properties.find(p => p.zpid === zpid);
+            if (property) {
+                property.note = noteText;
+            }
+            
+            const statusDiv = document.getElementById('modal-note-status-' + zpid);
+            const saveButton = document.getElementById('modal-save-note-' + zpid);
+            if (statusDiv) {
+                statusDiv.textContent = '✅ Note saved successfully!';
+                statusDiv.style.color = '#28a745';
+                statusDiv.style.fontWeight = '500';
+            }
+            if (saveButton) {
+                saveButton.style.display = 'none';
+                saveButton.style.background = '#667eea'; // Reset color
+            }
+            return true;
+        } else {
+            const statusDiv = document.getElementById('modal-note-status-' + zpid);
+            if (statusDiv) {
+                statusDiv.textContent = '❌ Error saving note: ' + (data.error || 'Unknown error');
+                statusDiv.style.color = '#dc3545';
+                statusDiv.style.fontWeight = '500';
+            }
+            return false;
+        }
+    })
+    .catch(error => {
+        console.error('Error saving note:', error);
+        const statusDiv = document.getElementById('modal-note-status-' + zpid);
+        if (statusDiv) {
+            statusDiv.textContent = '❌ Error saving note: Network error';
+            statusDiv.style.color = '#dc3545';
+            statusDiv.style.fontWeight = '500';
+        }
+        return false;
+    });
+}
+
+// Manual save function for immediate saving
+function saveNoteManually(zpid) {
+    const password = document.getElementById('password').value;
+    if (!password) {
+        alert('Password required to save notes');
+        return;
+    }
+    
+    const noteTextarea = document.getElementById('modal-note-' + zpid);
+    const saveButton = document.getElementById('modal-save-note-' + zpid);
+    
+    if (noteTextarea && saveButton) {
+        const noteText = noteTextarea.value.trim();
+        
+        // Disable button and show saving state
+        saveButton.disabled = true;
+        saveButton.textContent = '💾 Saving...';
+        
+        saveNoteModal(zpid, noteText, password).then(success => {
+            if (success) {
+                saveButton.style.display = 'none';
+                saveButton.disabled = false;
+                saveButton.textContent = '💾 Save Note';
+            } else {
+                saveButton.disabled = false;
+                saveButton.textContent = '💾 Retry Save';
+                saveButton.style.background = '#dc3545';
+            }
+        });
+    }
+}
+
+// Get password from URL parameters (kept for compatibility)
+function getPasswordFromUrl() {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get('password') || '';
 }
 
 // Navigation functions
