@@ -193,11 +193,14 @@ def generate_scoring_sql(weights: dict, params: dict, financing_filter: list = N
             g.drive_time,
             g.name as grocery_name,
             g.rating as grocery_rating,
-            g.user_ratings_total as grocery_ratings_count
+            g.user_ratings_total as grocery_ratings_count,
+            l.latitude,
+            l.longitude
         FROM properties p
         LEFT JOIN property_features pf ON p.zpid = pf.zpid
         LEFT JOIN crime c ON p.zpid = c.zpid
         LEFT JOIN grocery g ON p.zpid = g.zpid
+        LEFT JOIN location l ON p.zpid = l.zpid
     ),
     
     normalized_scores AS (
@@ -393,7 +396,9 @@ def generate_scoring_sql(weights: dict, params: dict, financing_filter: list = N
         END as avg_crime_severity_raw,
         ((COALESCE(bf.violent_100k, 360.0) * 2.0 + COALESCE(bf.property_100k, 2763.0)) / 3.0) as avg_crime_severity,
         bf.financing_eligibility,
-        bf.financing_eligibility_explanation
+        bf.financing_eligibility_explanation,
+        bf.latitude,
+        bf.longitude
         
     FROM normalized_scores ns
     JOIN base_features bf ON ns.zpid = bf.zpid
@@ -624,6 +629,13 @@ def index():
         if not financing_filter:
             financing_filter = ['eligible']  # Default to only eligible properties
         
+        # Get minimum score threshold filter
+        min_score_threshold = request.args.get('min_score_threshold', '0')
+        try:
+            min_score_threshold = float(min_score_threshold)
+        except ValueError:
+            min_score_threshold = 0.0
+        
         # Get aggressiveness parameter
         aggressiveness = request.args.get('optimizer_aggressiveness', '0.4')
         try:
@@ -698,6 +710,12 @@ def index():
             allowed_ratings.add('')
         results_df = results_df[results_df['rating'].isin(allowed_ratings)]
         
+        # Apply minimum score threshold filter (only for blank ratings)
+        if min_score_threshold > 0:
+            # Keep all properties with ratings, but filter blank ratings by score
+            mask = (results_df['rating'] != '') | (results_df['total_score'] >= min_score_threshold)
+            results_df = results_df[mask]
+        
         # Default sorting by total_score descending (no user sorting controls)
         results_df = results_df.sort_values(by='total_score', ascending=False)
         
@@ -720,11 +738,21 @@ def index():
         missing_crime_count = sum(1 for p in properties if p.get('crime_icon_level') is None)
         logger.info(f"Properties with missing crime data: {missing_crime_count} out of {len(properties)}")
         
+        # Calculate score range for slider
+        if len(results_df) > 0:
+            score_min = float(results_df['total_score'].min())
+            score_max = float(results_df['total_score'].max())
+        else:
+            score_min, score_max = 0.0, 100.0
+        
         return render_template('index.html', 
                              properties=properties,
                              password_correct=password_correct,
                              rating_filter=rating_filter,
                              financing_filter=financing_filter,
+                             min_score_threshold=min_score_threshold,
+                             score_min=score_min,
+                             score_max=score_max,
                              current_weights=weights,
                              aggressiveness=aggressiveness,
                              request=request)
@@ -897,6 +925,136 @@ def settings():
         logger.error(f"Error in settings route: {e}")
         return render_template('error.html', error=str(e))
 
+@app.route('/map')
+def map_view():
+    """Map view of all properties with same filtering as main page"""
+    try:
+        # Get filter parameters (same as index route)
+        rating_filter = request.args.getlist('rating_filter')
+        if not rating_filter:
+            rating_filter = ['yes', 'maybe', 'blank']  # Default filters
+            
+        # Get financing eligibility filter
+        financing_filter = request.args.getlist('financing_filter')
+        if not financing_filter:
+            financing_filter = ['eligible']  # Default to only eligible properties
+        
+        # Get minimum score threshold filter
+        min_score_threshold = request.args.get('min_score_threshold', '0')
+        try:
+            min_score_threshold = float(min_score_threshold)
+        except ValueError:
+            min_score_threshold = 0.0
+        
+        # Password check
+        password = request.args.get('password', '')
+        password_correct = password == CORRECT_PASSWORD
+        
+        # Get current weights for scoring (use defaults since map doesn't have weight controls)
+        weights = DEFAULT_FEATURE_WEIGHTS.copy()
+        params = DEFAULT_SCORING_PARAMETERS.copy()
+        
+        # Generate and execute scoring query (same as table view but filter for location data)
+        norm_weights = normalize_weights(weights)
+        scoring_sql = generate_scoring_sql(norm_weights, params, financing_filter)
+        results_df = get_scored_properties(scoring_sql)
+        
+        # Filter to only include properties with location data
+        results_df = results_df[
+            (results_df['latitude'].notna()) & 
+            (results_df['longitude'].notna())
+        ]
+        
+        # Load ratings and notes if authenticated
+        ratings_dict = {}
+        notes_dict = {}
+        if password_correct:
+            try:
+                ratings_conn = get_ratings_db_connection()
+                ratings_dict = load_ratings_dict(ratings_conn)
+                notes_dict = load_notes_dict(ratings_conn)
+                ratings_conn.close()
+            except Exception as e:
+                logger.error(f"Could not load ratings and notes: {e}")
+        
+        # Add ratings and notes to results
+        results_df['rating'] = results_df['zpid'].map(lambda x: ratings_dict.get(x, ''))
+        results_df['note'] = results_df['zpid'].map(lambda x: notes_dict.get(x, ''))
+        
+        # Add city info for display
+        results_df['city_state'] = results_df['full_address'].apply(extract_city_from_address)
+        
+        # Add drive time color coding
+        results_df['drive_time_color'] = results_df['drive_time'].apply(get_drive_time_color)
+        
+        # Add school rating color coding
+        results_df['school_rating_color'] = results_df['avg_school_rating'].apply(get_school_rating_color)
+        
+        # Add risk emoji
+        results_df['risk_emoji'] = results_df['avg_risk_severity'].apply(get_risk_emoji)
+        
+        # Calculate crime icon levels and emojis (same logic as index)
+        valid_crime_scores = results_df['avg_crime_severity_raw'].dropna()
+        if len(valid_crime_scores) > 0:
+            crime_min = valid_crime_scores.min()
+            crime_max = valid_crime_scores.max()
+            crime_range = crime_max - crime_min
+            
+            if crime_range > 0:
+                results_df['crime_icon_level'] = results_df['avg_crime_severity_raw'].apply(
+                    lambda x: None if pd.isna(x) else 4 - min(4, int((x - crime_min) / crime_range * 5))
+                )
+            else:
+                results_df['crime_icon_level'] = results_df['avg_crime_severity_raw'].apply(
+                    lambda x: None if pd.isna(x) else 2  # Middle level
+                )
+        else:
+            results_df['crime_icon_level'] = None
+            
+        results_df['crime_emoji'] = results_df['crime_icon_level'].apply(get_crime_emoji)
+        
+        # Apply rating filter
+        allowed_ratings = set(rating_filter)
+        if 'blank' in allowed_ratings:
+            allowed_ratings.add('')
+        results_df = results_df[results_df['rating'].isin(allowed_ratings)]
+        
+        # Apply minimum score threshold filter (only for blank ratings)
+        if min_score_threshold > 0:
+            # Keep all properties with ratings, but filter blank ratings by score
+            mask = (results_df['rating'] != '') | (results_df['total_score'] >= min_score_threshold)
+            results_df = results_df[mask]
+        
+        # Convert to dict for template, handling NaN values properly
+        properties = results_df.to_dict('records')
+        
+        # Convert pandas NaN to None for proper JSON serialization
+        for prop in properties:
+            for key, value in prop.items():
+                if pd.isna(value):
+                    prop[key] = None
+        
+        # Calculate score range for slider
+        if len(results_df) > 0:
+            score_min = float(results_df['total_score'].min())
+            score_max = float(results_df['total_score'].max())
+        else:
+            score_min, score_max = 0.0, 100.0
+        
+        return render_template('map.html', 
+                             properties=properties,
+                             password_correct=password_correct,
+                             rating_filter=rating_filter,
+                             financing_filter=financing_filter,
+                             min_score_threshold=min_score_threshold,
+                             score_min=score_min,
+                             score_max=score_max,
+                             request=request)
+                             
+    except Exception as e:
+        logger.error(f"Error in map route: {e}")
+        return render_template('error.html', error=str(e))
+
 @app.route('/health')
 def health_check():
     """Lightweight health check endpoint for Railway deployment"""
@@ -969,6 +1127,13 @@ def optimize_weights():
         rating_filter = request.form.getlist('rating_filter')
         if not rating_filter:
             rating_filter = ['yes', 'maybe', 'blank']  # Default filters
+        
+        # Get minimum score threshold filter
+        min_score_threshold = request.form.get('min_score_threshold', '0')
+        try:
+            min_score_threshold = float(min_score_threshold)
+        except ValueError:
+            min_score_threshold = 0.0
         
         # Get aggressiveness parameter
         aggressiveness = request.form.get('optimizer_aggressiveness', '0.4')
@@ -1064,6 +1229,12 @@ def optimize_weights():
                     allowed_ratings.add('')
                 new_properties_df = new_properties_df[new_properties_df['rating'].isin(allowed_ratings)]
                 
+                # Apply minimum score threshold filter (only for blank ratings)
+                if min_score_threshold > 0:
+                    # Keep all properties with ratings, but filter blank ratings by score
+                    mask = (new_properties_df['rating'] != '') | (new_properties_df['total_score'] >= min_score_threshold)
+                    new_properties_df = new_properties_df[mask]
+                
                 # Sort by total_score descending
                 new_properties_df = new_properties_df.sort_values(by='total_score', ascending=False)
                 
@@ -1075,10 +1246,18 @@ def optimize_weights():
                     for key, value in prop.items():
                         if pd.isna(value):
                             prop[key] = None
+                
+                # Calculate score range for slider update
+                if len(new_properties_df) > 0:
+                    score_min = float(new_properties_df['total_score'].min())
+                    score_max = float(new_properties_df['total_score'].max())
+                else:
+                    score_min, score_max = 0.0, 100.0
                             
             except Exception as e:
                 logger.error(f"Error generating new property data: {e}")
                 properties_list = None
+                score_min, score_max = 0.0, 100.0
         
         # Prepare response
         response_data = {
@@ -1086,7 +1265,9 @@ def optimize_weights():
             'optimized_weights': optimized_weights,
             'weight_url_params': weight_params,
             'optimization_info': info,
-            'properties': properties_list if info['success'] else None
+            'properties': properties_list if info['success'] else None,
+            'score_min': score_min,
+            'score_max': score_max
         }
         
         if info['success']:

@@ -33,13 +33,16 @@
         </div>
         {% endif %}
 
-        <!-- Settings Link -->
+        <!-- Navigation Links -->
         <div class="control-group">
-            <div class="settings-link-container">
-                <a href="javascript:void(0)" onclick="goToSettings()" class="settings-link">
-                    🔧 Adjust Scoring Weights
+            <div class="nav-links-container">
+                <a href="javascript:void(0)" onclick="goToMap()" class="nav-link">
+                    🗺️ Map View
                 </a>
-                <span class="settings-hint">Customize how properties are scored and ranked</span>
+                <span class="nav-separator">|</span>
+                <a href="javascript:void(0)" onclick="goToSettings()" class="nav-link">
+                    🔧 Settings
+                </a>
             </div>
         </div>
 
@@ -92,58 +95,77 @@
         </div>
 
 
-        <!-- Financing eligibility filter -->
+        <!-- Financing eligibility and Rating filters side by side -->
         <div class="control-group">
-            <label>Show financing eligibility:</label>
-            <div class="checkbox-group">
-                <div class="checkbox-item">
-                    <input type="checkbox" id="filter_financing_eligible" name="financing_filter" value="eligible"
-                           {% if 'eligible' in financing_filter %}checked{% endif %}
-                           onchange="updateFilters()">
-                    <label for="filter_financing_eligible">💰 Eligible</label>
+            <div class="filter-row">
+                <div class="filter-column">
+                    <label>Show financing eligibility:</label>
+                    <div class="checkbox-group">
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="filter_financing_eligible" name="financing_filter" value="eligible"
+                                   {% if 'eligible' in financing_filter %}checked{% endif %}
+                                   onchange="updateFilters()">
+                            <label for="filter_financing_eligible">💰 Eligible</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="filter_financing_not_eligible" name="financing_filter" value="not_eligible"
+                                   {% if 'not_eligible' in financing_filter %}checked{% endif %}
+                                   onchange="updateFilters()">
+                            <label for="filter_financing_not_eligible">🚫 Not Eligible</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="filter_financing_unknown" name="financing_filter" value="unknown"
+                                   {% if 'unknown' in financing_filter %}checked{% endif %}
+                                   onchange="updateFilters()">
+                            <label for="filter_financing_unknown">❓ Unknown</label>
+                        </div>
+                    </div>
                 </div>
-                <div class="checkbox-item">
-                    <input type="checkbox" id="filter_financing_not_eligible" name="financing_filter" value="not_eligible"
-                           {% if 'not_eligible' in financing_filter %}checked{% endif %}
-                           onchange="updateFilters()">
-                    <label for="filter_financing_not_eligible">🚫 Not Eligible</label>
-                </div>
-                <div class="checkbox-item">
-                    <input type="checkbox" id="filter_financing_unknown" name="financing_filter" value="unknown"
-                           {% if 'unknown' in financing_filter %}checked{% endif %}
-                           onchange="updateFilters()">
-                    <label for="filter_financing_unknown">❓ Unknown</label>
+                <div class="filter-column">
+                    <label>Show ratings:</label>
+                    <div class="checkbox-group">
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="filter_yes" name="rating_filter" value="yes"
+                                   {% if 'yes' in rating_filter %}checked{% endif %}
+                                   onchange="updateFilters()">
+                            <label for="filter_yes">✅ Yes</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="filter_no" name="rating_filter" value="no"
+                                   {% if 'no' in rating_filter %}checked{% endif %}
+                                   onchange="updateFilters()">
+                            <label for="filter_no">❌ No</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="filter_maybe" name="rating_filter" value="maybe"
+                                   {% if 'maybe' in rating_filter %}checked{% endif %}
+                                   onchange="updateFilters()">
+                            <label for="filter_maybe">🤔 Maybe</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="filter_blank" name="rating_filter" value="blank"
+                                   {% if 'blank' in rating_filter %}checked{% endif %}
+                                   onchange="updateFilters()">
+                            <label for="filter_blank">⚪ Blank</label>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Rating filters -->
+        <!-- Minimum Score Threshold Filter -->
         <div class="control-group">
-            <label>Show ratings:</label>
-            <div class="checkbox-group">
-                <div class="checkbox-item">
-                    <input type="checkbox" id="filter_yes" name="rating_filter" value="yes"
-                           {% if 'yes' in rating_filter %}checked{% endif %}
-                           onchange="updateFilters()">
-                    <label for="filter_yes">✅ Yes</label>
-                </div>
-                <div class="checkbox-item">
-                    <input type="checkbox" id="filter_no" name="rating_filter" value="no"
-                           {% if 'no' in rating_filter %}checked{% endif %}
-                           onchange="updateFilters()">
-                    <label for="filter_no">❌ No</label>
-                </div>
-                <div class="checkbox-item">
-                    <input type="checkbox" id="filter_maybe" name="rating_filter" value="maybe"
-                           {% if 'maybe' in rating_filter %}checked{% endif %}
-                           onchange="updateFilters()">
-                    <label for="filter_maybe">🤔 Maybe</label>
-                </div>
-                <div class="checkbox-item">
-                    <input type="checkbox" id="filter_blank" name="rating_filter" value="blank"
-                           {% if 'blank' in rating_filter %}checked{% endif %}
-                           onchange="updateFilters()">
-                    <label for="filter_blank">⚪ Blank</label>
+            <label for="min_score_threshold">🎯 Minimum Score Threshold (filters blank ratings only):</label>
+            <div class="slider-container">
+                <input type="range" id="min_score_threshold" name="min_score_threshold" 
+                       min="{{ score_min|round(1) }}" max="{{ score_max|round(1) }}" step="0.1" 
+                       value="{{ min_score_threshold }}" 
+                       oninput="updateScoreThresholdLabel(this.value)" 
+                       onchange="updateFilters()">
+                <div class="slider-labels">
+                    <span>{{ score_min|round(1) }}</span>
+                    <span id="scoreThresholdValue">{{ min_score_threshold }}</span>
+                    <span id="scoreThresholdMax">{{ score_max|round(1) }}</span>
                 </div>
             </div>
         </div>
@@ -358,14 +380,16 @@
 </div>
 
 <style>
-.settings-link-container {
+/* Navigation links */
+.nav-links-container {
     display: flex;
-    flex-direction: column;
+    justify-content: center;
     align-items: center;
-    gap: 5px;
+    gap: 15px;
+    flex-wrap: wrap;
 }
 
-.settings-link {
+.nav-link {
     display: inline-block;
     padding: 10px 20px;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -377,18 +401,17 @@
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
-.settings-link:hover {
+.nav-link:hover {
     transform: translateY(-1px);
     box-shadow: 0 4px 8px rgba(0,0,0,0.2);
     color: white;
     text-decoration: none;
 }
 
-.settings-hint {
-    font-size: 12px;
-    color: #666;
-    font-style: italic;
-    text-align: center;
+.nav-separator {
+    font-size: 18px;
+    color: #999;
+    font-weight: bold;
 }
 
 
@@ -742,13 +765,20 @@ input:disabled:checked + .toggle-slider {
 }
 
 @media (max-width: 768px) {
-    .settings-link-container {
-        align-items: stretch;
+    .nav-links-container {
+        flex-direction: column;
+        gap: 10px;
     }
     
-    .settings-link {
+    .nav-link {
         text-align: center;
         padding: 12px 15px;
+        width: 100%;
+        max-width: 200px;
+    }
+    
+    .nav-separator {
+        display: none;
     }
     
     .toggle-container {
@@ -873,6 +903,22 @@ function initializeAIRanking() {
     }
 }
 
+function goToMap() {
+    // Build URL with current parameters
+    const currentParams = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams();
+    
+    // Add all current parameters (excluding weight parameters since map doesn't use scoring)
+    for (const [key, value] of currentParams.entries()) {
+        if (!key.startsWith('weight_') && key !== 'optimizer_aggressiveness') {
+            params.append(key, value);
+        }
+    }
+    
+    // Navigate to map page with parameters
+    window.location.href = '/map?' + params.toString();
+}
+
 function goToSettings() {
     // Build URL with current parameters (weights, filters, password)
     const currentParams = new URLSearchParams(window.location.search);
@@ -960,6 +1006,12 @@ function performOptimization() {
         formData.append('optimizer_aggressiveness', aggressivenessSlider.value);
     }
     
+    // Add minimum score threshold
+    const scoreThresholdSlider = document.getElementById('min_score_threshold');
+    if (scoreThresholdSlider) {
+        formData.append('min_score_threshold', scoreThresholdSlider.value);
+    }
+    
     // Send optimization request
     fetch('/optimize_weights', {
         method: 'POST',
@@ -996,6 +1048,11 @@ function performOptimization() {
             // Update the properties table with new data
             if (data.properties) {
                 updatePropertiesTable(data.properties);
+            }
+            
+            // Update slider range if provided
+            if (data.score_min !== undefined && data.score_max !== undefined) {
+                updateSliderRange(data.score_min, data.score_max);
             }
             
             // Clear status after a delay
@@ -1036,6 +1093,36 @@ function performOptimization() {
     });
 }
 
+
+function updateSliderRange(scoreMin, scoreMax) {
+    const slider = document.getElementById('min_score_threshold');
+    const minLabel = document.querySelector('.slider-labels span:first-child');
+    const maxLabel = document.getElementById('scoreThresholdMax');
+    
+    if (slider) {
+        // Update slider attributes but preserve current value
+        const currentValue = parseFloat(slider.value);
+        slider.min = scoreMin.toFixed(1);
+        slider.max = scoreMax.toFixed(1);
+        
+        // Only update the value if it's outside the new range
+        if (currentValue < scoreMin) {
+            slider.value = scoreMin.toFixed(1);
+            updateScoreThresholdLabel(slider.value);
+        } else if (currentValue > scoreMax) {
+            slider.value = scoreMax.toFixed(1);
+            updateScoreThresholdLabel(slider.value);
+        }
+    }
+    
+    if (minLabel) {
+        minLabel.textContent = scoreMin.toFixed(1);
+    }
+    
+    if (maxLabel) {
+        maxLabel.textContent = scoreMax.toFixed(1);
+    }
+}
 
 function updatePropertiesTable(properties) {
     // Find the table body

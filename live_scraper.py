@@ -18,6 +18,9 @@ The process is as follows:
 4.  Continue until all pages are processed or no more qualifying listings found.
 """
 
+SEARCH_URL = 'https://www.zillow.com/homes/for_sale/?searchQueryState=%7B%22isMapVisible%22%3Atrue%2C%22mapBounds%22%3A%7B%22west%22%3A-156.63478397587753%2C%22east%22%3A-112.82130741337754%2C%22south%22%3A37.003092903893084%2C%22north%22%3A50.98652477441754%7D%2C%22filterState%22%3A%7B%22sort%22%3A%7B%22value%22%3A%22globalrelevanceex%22%7D%2C%22price%22%3A%7B%22max%22%3A700000%7D%2C%22mp%22%3A%7B%22max%22%3A3406%7D%2C%22beds%22%3A%7B%22min%22%3A3%7D%2C%22baths%22%3A%7B%22min%22%3A2%7D%2C%22tow%22%3A%7B%22value%22%3Afalse%7D%2C%22mf%22%3A%7B%22value%22%3Afalse%7D%2C%22con%22%3A%7B%22value%22%3Afalse%7D%2C%22land%22%3A%7B%22value%22%3Afalse%7D%2C%22apa%22%3A%7B%22value%22%3Afalse%7D%2C%22apco%22%3A%7B%22value%22%3Afalse%7D%2C%22lot%22%3A%7B%22min%22%3A87120%7D%7D%2C%22isListVisible%22%3Atrue%2C%22mapZoom%22%3A6%2C%22customRegionId%22%3A%227ca8b68bbaX1-CRlexe5hovo8mh_116nid%22%7D'
+
+
 import os
 import re
 import json
@@ -69,6 +72,43 @@ genai.configure(api_key=GOOGLE_API_KEY)
 
 
 # --- DATABASE FUNCTIONS ---
+
+def get_for_review_links() -> list[str]:
+    """
+    Get all links from the for_review table in the SQLite Cloud database.
+    Returns a list of Zillow URLs that should be processed first.
+    """
+    try:
+        # Get RATINGS_DB_URL from environment (same as flask app)
+        import os
+        RATINGS_DB_URL = os.getenv('RATINGS_DB_URL', '')
+        
+        if not RATINGS_DB_URL:
+            if VERBOSE_LOGGING:
+                print("⚠️ RATINGS_DB_URL not set, cannot retrieve for_review links.")
+            return []
+        
+        # Connect to SQLite Cloud database (same pattern as flask app)
+        try:
+            import sqlitecloud
+        except ImportError:
+            if VERBOSE_LOGGING:
+                print("⚠️ sqlitecloud package not available, cannot retrieve for_review links.")
+            return []
+        
+        conn = sqlitecloud.connect(RATINGS_DB_URL)
+        cursor = conn.execute("SELECT zillow_url FROM for_review ORDER BY added_at ASC")
+        links = [row[0] for row in cursor.fetchall()]
+        conn.close()
+        
+        if VERBOSE_LOGGING and links:
+            print(f"🔍 Found {len(links)} links in for_review table to process first.")
+        
+        return links
+    except Exception as e:
+        if VERBOSE_LOGGING:
+            print(f"⚠️ Could not retrieve for_review links: {e}")
+        return []
 
 def setup_database(db_path: str = DB_PATH) -> duckdb.DuckDBPyConnection:
     """
@@ -620,9 +660,8 @@ def run_live_extraction():
             time.sleep(3 * SPEED_MULTIPLIER)
 
             # Step 2: Go to the search page
-            search_url = 'https://www.zillow.com/homes/for_sale/?searchQueryState=%7B%22isMapVisible%22%3Atrue%2C%22mapBounds%22%3A%7B%22west%22%3A-156.63478397587753%2C%22east%22%3A-112.82130741337754%2C%22south%22%3A37.003092903893084%2C%22north%22%3A50.98652477441754%7D%2C%22filterState%22%3A%7B%22sort%22%3A%7B%22value%22%3A%22globalrelevanceex%22%7D%2C%22price%22%3A%7B%22max%22%3A700000%7D%2C%22mp%22%3A%7B%22max%22%3A3406%7D%2C%22beds%22%3A%7B%22min%22%3A3%7D%2C%22baths%22%3A%7B%22min%22%3A2%7D%2C%22tow%22%3A%7B%22value%22%3Afalse%7D%2C%22mf%22%3A%7B%22value%22%3Afalse%7D%2C%22con%22%3A%7B%22value%22%3Afalse%7D%2C%22land%22%3A%7B%22value%22%3Afalse%7D%2C%22apa%22%3A%7B%22value%22%3Afalse%7D%2C%22apco%22%3A%7B%22value%22%3Afalse%7D%2C%22lot%22%3A%7B%22min%22%3A87120%7D%7D%2C%22isListVisible%22%3Atrue%2C%22mapZoom%22%3A6%2C%22customRegionId%22%3A%227ca8b68bbaX1-CRlexe5hovo8mh_116nid%22%7D'
             print("🔍 Loading search results page...")
-            page.goto(search_url, wait_until='load', timeout=60000)
+            page.goto(SEARCH_URL, wait_until='load', timeout=60000)
             time.sleep(5 * SPEED_MULTIPLIER)
 
             # CAPTCHA check
@@ -690,6 +729,14 @@ def run_live_extraction():
                 # Remove duplicates
                 listing_links_on_page = sorted(list(set(listing_links_on_page)))
                 next_page_button = page.query_selector('a[title="Next page"]')
+
+                # Add for_review links to the TOP of the list, but only on the FIRST PAGE
+                if current_page_num == 1:
+                    for_review_links = get_for_review_links()
+                    if for_review_links:
+                        # Add for_review links to the beginning of the list
+                        listing_links_on_page = for_review_links + listing_links_on_page
+                        print(f"📋 Added {len(for_review_links)} links from for_review table to the top of the list.")
 
                 print(f"🔍 Found {len(listing_links_on_page)} unique listings on this page.")
 

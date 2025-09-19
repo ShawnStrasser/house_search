@@ -9,7 +9,10 @@
     <div class="controls">
         <div class="settings-nav">
             <a href="javascript:void(0)" onclick="goBackToProperties()" class="nav-button">
-                ⬅️ Back to Properties
+                📊 Table View
+            </a>
+            <a href="javascript:void(0)" onclick="goToMap()" class="nav-button">
+                🗺️ Map View
             </a>
             <button type="button" class="nav-button" onclick="resetToDefaults()">
                 🔄 Reset to Defaults
@@ -515,6 +518,23 @@ function goBackToProperties() {
     
     // Navigate to main page with parameters
     window.location.href = '/?' + params.toString();
+}
+
+// Go to map view with current parameters (excluding weights since map doesn't use scoring)
+function goToMap() {
+    // Build URL with current parameters from URL (excluding weights)
+    const currentUrl = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams();
+    
+    // Add all current parameters except weight-related ones
+    for (const [key, value] of currentUrl.entries()) {
+        if (!key.startsWith('weight_') && key !== 'optimizer_aggressiveness') {
+            params.append(key, value);
+        }
+    }
+    
+    // Navigate to map page with parameters
+    window.location.href = '/map?' + params.toString();
 }
 
 // Reset to defaults

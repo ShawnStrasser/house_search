@@ -1,0 +1,885 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="header">
+    <h1>🗺️ Property Map View</h1>
+</div>
+
+<div class="controls">
+    <form id="filterForm" method="GET">
+        <!-- Password input -->
+        {% if not password_correct %}
+        <div class="control-group">
+            <label for="password">Password (for editing ratings):</label>
+            <div class="control-row">
+                <input type="text" id="password" name="password" 
+                       value="{{ request.args.get('password', '') }}" 
+                       placeholder="Enter password" maxlength="4"
+                       oninput="savePassword()"
+                       onchange="updateFilters()"
+                       onkeypress="if(event.key==='Enter') updateFilters()">
+                {% if request.args.get('password') %}
+                    <span class="error">❌ Incorrect password</span>
+                {% endif %}
+            </div>
+        </div>
+        {% else %}
+        <!-- Hidden authenticated state -->
+        <input type="hidden" id="password" name="password" value="{{ request.args.get('password', '') }}">
+        <div class="control-group">
+            <div style="text-align: center; color: #28a745; font-weight: 500;">
+                ✅ Authenticated - editing enabled
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Navigation Links -->
+        <div class="control-group">
+            <div class="nav-links-container">
+                <a href="javascript:void(0)" onclick="goToTable()" class="nav-link">
+                    📊 Table View
+                </a>
+                <span class="nav-separator">|</span>
+                <a href="javascript:void(0)" onclick="goToSettings()" class="nav-link">
+                    🔧 Settings
+                </a>
+            </div>
+        </div>
+
+        <!-- Financing eligibility and Rating filters side by side -->
+        <div class="control-group">
+            <div class="filter-row">
+                <div class="filter-column">
+                    <label>Show financing eligibility:</label>
+                    <div class="checkbox-group">
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="filter_financing_eligible" name="financing_filter" value="eligible"
+                                   {% if 'eligible' in financing_filter %}checked{% endif %}
+                                   onchange="updateFilters()">
+                            <label for="filter_financing_eligible">💰 Eligible</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="filter_financing_not_eligible" name="financing_filter" value="not_eligible"
+                                   {% if 'not_eligible' in financing_filter %}checked{% endif %}
+                                   onchange="updateFilters()">
+                            <label for="filter_financing_not_eligible">🚫 Not Eligible</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="filter_financing_unknown" name="financing_filter" value="unknown"
+                                   {% if 'unknown' in financing_filter %}checked{% endif %}
+                                   onchange="updateFilters()">
+                            <label for="filter_financing_unknown">❓ Unknown</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="filter-column">
+                    <label>Show ratings:</label>
+                    <div class="checkbox-group">
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="filter_yes" name="rating_filter" value="yes"
+                                   {% if 'yes' in rating_filter %}checked{% endif %}
+                                   onchange="updateFilters()">
+                            <label for="filter_yes">✅ Yes</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="filter_no" name="rating_filter" value="no"
+                                   {% if 'no' in rating_filter %}checked{% endif %}
+                                   onchange="updateFilters()">
+                            <label for="filter_no">❌ No</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="filter_maybe" name="rating_filter" value="maybe"
+                                   {% if 'maybe' in rating_filter %}checked{% endif %}
+                                   onchange="updateFilters()">
+                            <label for="filter_maybe">🤔 Maybe</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="filter_blank" name="rating_filter" value="blank"
+                                   {% if 'blank' in rating_filter %}checked{% endif %}
+                                   onchange="updateFilters()">
+                            <label for="filter_blank">⚪ Blank</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Minimum Score Threshold Filter -->
+        <div class="control-group">
+            <label for="min_score_threshold">🎯 Minimum Score Threshold (filters blank ratings only):</label>
+            <div class="slider-container">
+                <input type="range" id="min_score_threshold" name="min_score_threshold" 
+                       min="{{ score_min|round(1) }}" max="{{ score_max|round(1) }}" step="0.1" 
+                       value="{{ min_score_threshold }}" 
+                       oninput="updateScoreThresholdLabel(this.value)" 
+                       onchange="updateFilters()">
+                <div class="slider-labels">
+                    <span>{{ score_min|round(1) }}</span>
+                    <span id="scoreThresholdValue">{{ min_score_threshold }}</span>
+                    <span id="scoreThresholdMax">{{ score_max|round(1) }}</span>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Map Container -->
+<div class="map-container">
+    {% if properties %}
+        <div id="map" class="property-map"></div>
+        <div class="map-info">
+            📍 <strong>{{ properties|length }} properties</strong> shown on map. 
+            Click markers for details. 
+            {% if not password_correct %}Enter password above to edit ratings.{% endif %}
+        </div>
+    {% else %}
+        <div class="no-data">
+            <h3>No properties with location data found</h3>
+            <p>Try adjusting your filters or check that properties have been geocoded.</p>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Property Modal -->
+<div id="propertyModal" class="property-modal">
+    <!-- Modal content will be dynamically inserted here -->
+</div>
+
+<!-- Property data for JavaScript -->
+<script type="text/javascript">
+    // Make properties data available to JavaScript
+    window.propertiesData = {{ properties | tojson }};
+    window.passwordCorrect = {{ password_correct | tojson }};
+</script>
+
+<style>
+/* Map-specific styles */
+.map-container {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    overflow: hidden;
+    margin-bottom: 20px;
+}
+
+.property-map {
+    width: 100%;
+    height: 70vh;
+    min-height: 500px;
+}
+
+.map-info {
+    padding: 15px;
+    background: #f8f9fa;
+    font-size: 14px;
+    color: #666;
+    border-top: 1px solid #dee2e6;
+    text-align: center;
+}
+
+/* Navigation links */
+.nav-links-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.nav-link {
+    display: inline-block;
+    padding: 10px 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    text-decoration: none;
+    border-radius: 6px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.nav-link:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    color: white;
+    text-decoration: none;
+}
+
+.nav-separator {
+    font-size: 18px;
+    color: #999;
+    font-weight: bold;
+}
+
+/* Property Modal Styling */
+.property-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.8);
+    z-index: 10000;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+.property-modal-content {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    max-width: 800px;
+    width: 100%;
+    max-height: 90vh;
+    position: relative;
+    animation: modalFadeIn 0.2s ease-out;
+    display: flex;
+    flex-direction: column;
+}
+
+@keyframes modalFadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.property-modal-content .modal-header {
+    padding: 15px 25px;
+    border-bottom: 2px solid #667eea;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: linear-gradient(135deg, #f8f9ff 0%, #e8ecff 100%);
+    border-radius: 12px 12px 0 0;
+    flex-shrink: 0;
+}
+
+.property-modal-content .modal-header h2 {
+    margin: 0;
+    color: #667eea;
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.property-modal-content .modal-close {
+    background: none;
+    border: none;
+    font-size: 32px;
+    color: #999;
+    cursor: pointer;
+    padding: 0;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s;
+}
+
+.property-modal-content .modal-close:hover {
+    background: rgba(0, 0, 0, 0.1);
+    color: #333;
+}
+
+.property-modal-content .modal-body {
+    padding: 20px 25px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.property-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 10px;
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+}
+
+.stat-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+}
+
+.stat-label {
+    font-weight: 600;
+    color: #555;
+}
+
+.stat-value {
+    font-weight: 500;
+    color: #333;
+}
+
+.modal-section {
+    margin-bottom: 15px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #eee;
+}
+
+.modal-section:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.modal-section h3 {
+    margin: 0 0 8px 0;
+    color: #667eea;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.modal-section p {
+    margin: 0;
+    line-height: 1.6;
+    color: #555;
+}
+
+.property-modal-content .modal-footer {
+    padding: 15px 25px;
+    background: #f8f9fa;
+    border-top: 1px solid #eee;
+    border-radius: 0 0 12px 12px;
+    flex-shrink: 0;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+}
+
+.zillow-button {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 12px 24px;
+    text-decoration: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    transition: all 0.2s;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+.zillow-button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    color: white;
+    text-decoration: none;
+}
+
+.rating-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.rating-container label {
+    font-weight: 600;
+    color: #555;
+}
+
+.modal-rating-select {
+    padding: 8px 12px;
+    border: 2px solid #ddd;
+    border-radius: 6px;
+    font-size: 16px;
+    background: white;
+    min-width: 120px;
+}
+
+.modal-rating-select:focus {
+    border-color: #667eea;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+/* Custom marker styling */
+.custom-marker {
+    background: transparent !important;
+    border: none !important;
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+    .property-map {
+        height: 60vh;
+        min-height: 400px;
+    }
+    
+    .nav-links-container {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .nav-link {
+        text-align: center;
+        padding: 12px 15px;
+        width: 100%;
+        max-width: 200px;
+    }
+    
+    .nav-separator {
+        display: none;
+    }
+    
+    .property-modal {
+        padding: 10px;
+    }
+    
+    .property-modal-content {
+        max-height: 95vh;
+    }
+    
+    .property-modal-content .modal-header {
+        padding: 12px 15px;
+    }
+    
+    .property-modal-content .modal-header h2 {
+        font-size: 18px;
+    }
+    
+    .property-modal-content .modal-body {
+        padding: 15px;
+    }
+    
+    .property-stats {
+        grid-template-columns: 1fr;
+        gap: 8px;
+        padding: 12px;
+        margin-bottom: 12px;
+    }
+    
+    .modal-actions {
+        flex-direction: column;
+        gap: 15px;
+        align-items: stretch;
+    }
+    
+    .zillow-button {
+        width: 100%;
+        text-align: center;
+    }
+    
+    .rating-container {
+        justify-content: center;
+    }
+}
+
+@media (max-width: 480px) {
+    .property-map {
+        height: 50vh;
+        min-height: 350px;
+    }
+    
+    .property-modal {
+        padding: 5px;
+    }
+    
+    .property-modal-content .modal-header {
+        padding: 10px 12px;
+    }
+    
+    .property-modal-content .modal-header h2 {
+        font-size: 16px;
+    }
+    
+    .property-modal-content .modal-body {
+        padding: 12px;
+    }
+    
+    .property-modal-content .modal-footer {
+        padding: 12px;
+    }
+    
+    .property-stats {
+        padding: 10px;
+        margin-bottom: 10px;
+    }
+}
+</style>
+
+<!-- Leaflet CSS and JS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+     crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+     crossorigin=""></script>
+
+<script>
+// Map initialization and property markers
+let map;
+let markersLayer;
+
+// Initialize map when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    initializeMap();
+});
+
+function initializeMap() {
+    // Initialize map centered on properties or default location
+    const properties = window.propertiesData || [];
+    
+    if (properties.length === 0) {
+        console.log('No properties to display on map');
+        return;
+    }
+    
+    // Calculate center point from all properties
+    let centerLat = 0;
+    let centerLng = 0;
+    let validCount = 0;
+    
+    properties.forEach(property => {
+        if (property.latitude && property.longitude) {
+            centerLat += property.latitude;
+            centerLng += property.longitude;
+            validCount++;
+        }
+    });
+    
+    if (validCount === 0) {
+        console.log('No properties with valid coordinates');
+        return;
+    }
+    
+    centerLat /= validCount;
+    centerLng /= validCount;
+    
+    // Initialize map
+    map = L.map('map').setView([centerLat, centerLng], 10);
+    
+    // Add OpenStreetMap tiles
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        maxZoom: 18
+    }).addTo(map);
+    
+    // Create markers layer
+    markersLayer = L.layerGroup().addTo(map);
+    
+    // Add property markers
+    addPropertyMarkers(properties);
+    
+    // Fit map to show all markers
+    if (validCount > 1) {
+        const group = new L.featureGroup(markersLayer.getLayers());
+        map.fitBounds(group.getBounds().pad(0.1));
+    }
+}
+
+function addPropertyMarkers(properties) {
+    if (!markersLayer) return;
+    
+    // Clear existing markers
+    markersLayer.clearLayers();
+    
+    properties.forEach(property => {
+        if (!property.latitude || !property.longitude) return;
+        
+        // Create custom marker based on rating
+        const markerColor = getMarkerColor(property.rating);
+        const markerIcon = L.divIcon({
+            className: 'custom-marker',
+            html: `<div style="background-color: ${markerColor}; width: 16px; height: 16px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`,
+            iconSize: [16, 16],
+            iconAnchor: [8, 8]
+        });
+        
+        // Create marker
+        const marker = L.marker([property.latitude, property.longitude], {
+            icon: markerIcon
+        });
+        
+        // Add click handler to open full-screen modal
+        marker.on('click', function() {
+            showPropertyModal(property);
+        });
+        
+        // Add marker to layer
+        markersLayer.addLayer(marker);
+    });
+}
+
+function getMarkerColor(rating) {
+    switch(rating) {
+        case 'yes': return '#28a745';
+        case 'maybe': return '#ffc107';
+        case 'no': return '#dc3545';
+        default: return '#6c757d'; // blank
+    }
+}
+
+function showPropertyModal(property) {
+    const formatPrice = (price) => price ? `$${price.toLocaleString()}` : 'N/A';
+    const formatNumber = (num) => num ? num.toLocaleString() : '-';
+    const formatDecimal = (num) => num ? Math.round(num * 10) / 10 : '-';
+    
+    const modalContent = `
+        <div class="property-modal-content">
+            <div class="modal-header">
+                <h2>${property.city_state || 'Property Details'}</h2>
+                <button class="modal-close" onclick="closePropertyModal()">&times;</button>
+            </div>
+            
+            <div class="modal-body">
+                <div class="property-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">Price:</span>
+                        <span class="stat-value">${formatPrice(property.price)}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Beds:</span>
+                        <span class="stat-value">${property.beds || '-'}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Baths:</span>
+                        <span class="stat-value">${property.baths || '-'}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Sqft:</span>
+                        <span class="stat-value">${formatNumber(property.home_size_sqft)}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Lot:</span>
+                        <span class="stat-value">${formatDecimal(property.lot_size_acres)} acres</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">School:</span>
+                        <span class="stat-value" style="color: ${property.school_rating_color || '#999'}; font-weight: bold;">${formatDecimal(property.avg_school_rating)}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Crime:</span>
+                        <span class="stat-value">${property.crime_emoji || '❓'}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Grocery:</span>
+                        <span class="stat-value" style="color: ${property.drive_time_color || '#999'}; font-weight: bold;">${property.drive_time ? property.drive_time + 'min' : '🚫'}</span>
+                    </div>
+                </div>
+                
+                ${property.positive_features_list ? `
+                <div class="modal-section">
+                    <h3>✨ Positive Features</h3>
+                    <p>${property.positive_features_list}</p>
+                </div>
+                ` : ''}
+                
+                ${property.negative_features_list ? `
+                <div class="modal-section">
+                    <h3>⚠️ Negative Features</h3>
+                    <p>${property.negative_features_list}</p>
+                </div>
+                ` : ''}
+                
+                ${property.general_assessment ? `
+                <div class="modal-section">
+                    <h3>🏠 Assessment</h3>
+                    <p>${property.general_assessment}</p>
+                </div>
+                ` : ''}
+                
+                <div class="modal-section">
+                    <h3>🛒 Grocery Store</h3>
+                    <p>${property.grocery_name ? 
+                        `${property.grocery_name} - ${property.drive_time || '?'} min drive` +
+                        (property.grocery_rating ? `<br><small>(${property.grocery_rating}★ rating${property.grocery_ratings_count ? ` from ${property.grocery_ratings_count} reviews` : ''})</small>` : '')
+                    : '<span style="color: #DC143C;">🚫 No grocery information available</span>'}</p>
+                </div>
+                
+                <div class="modal-section">
+                    <h3>📍 Address</h3>
+                    <p>${property.full_address || 'Address not available'}</p>
+                </div>
+                
+                ${property.financing_eligibility_explanation ? `
+                <div class="modal-section">
+                    <h3>💰 Financing</h3>
+                    <p>${property.financing_eligibility_explanation}</p>
+                </div>
+                ` : ''}
+            </div>
+            
+            <div class="modal-footer">
+                <div class="modal-actions">
+                    <a href="${property.source_url || '#'}" target="_blank" class="zillow-button">
+                        🏠 View on Zillow
+                    </a>
+                    ${window.passwordCorrect ? `
+                    <div class="rating-container">
+                        <label for="modal-rating-${property.zpid}">Your Rating:</label>
+                        <select id="modal-rating-${property.zpid}" class="modal-rating-select" onchange="updateRatingFromModal(${property.zpid}, this.value)">
+                            <option value="" ${property.rating === '' ? 'selected' : ''}>-</option>
+                            <option value="yes" ${property.rating === 'yes' ? 'selected' : ''}>✅ Yes</option>
+                            <option value="maybe" ${property.rating === 'maybe' ? 'selected' : ''}>🤔 Maybe</option>
+                            <option value="no" ${property.rating === 'no' ? 'selected' : ''}>❌ No</option>
+                        </select>
+                    </div>
+                    ` : ''}
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Create and show modal
+    const modal = document.getElementById('propertyModal');
+    modal.innerHTML = modalContent;
+    modal.style.display = 'flex';
+    
+    // Prevent body scrolling when modal is open
+    document.body.style.overflow = 'hidden';
+}
+
+function closePropertyModal() {
+    const modal = document.getElementById('propertyModal');
+    modal.style.display = 'none';
+    
+    // Restore body scrolling
+    document.body.style.overflow = 'auto';
+}
+
+// Navigation functions
+function goToTable() {
+    // Build URL with current parameters
+    const currentParams = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams();
+    
+    // Add all current parameters
+    for (const [key, value] of currentParams.entries()) {
+        params.append(key, value);
+    }
+    
+    // Navigate to main page with parameters
+    window.location.href = '/?' + params.toString();
+}
+
+function goToSettings() {
+    // Build URL with current parameters
+    const currentParams = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams();
+    
+    // Add all current parameters
+    for (const [key, value] of currentParams.entries()) {
+        params.append(key, value);
+    }
+    
+    // Navigate to settings page with parameters
+    window.location.href = '/settings?' + params.toString();
+}
+
+// Handle filter updates (reuse existing function from base.html)
+function updateFilters() {
+    const form = document.getElementById('filterForm');
+    form.submit();
+}
+
+// Handle rating updates from modal
+function updateRatingFromModal(zpid, newRating) {
+    const password = document.getElementById('password').value;
+    updateRating(zpid, newRating, password);
+}
+
+// Handle rating updates (same as base template but also update marker)
+function updateRating(zpid, newRating, password) {
+    if (!password) {
+        alert('Password required to update ratings');
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('zpid', zpid);
+    formData.append('rating', newRating);
+    formData.append('password', password);
+    
+    fetch('/update_rating', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Update the property data
+            const properties = window.propertiesData || [];
+            const property = properties.find(p => p.zpid === zpid);
+            if (property) {
+                property.rating = newRating;
+            }
+            
+            // Check if the new rating should be filtered out
+            const currentFilters = getCurrentRatingFilters();
+            const shouldShow = shouldShowRating(newRating, currentFilters);
+            
+            if (!shouldShow) {
+                // Close modal and reload page to apply filters
+                closePropertyModal();
+                location.reload();
+            } else {
+                // Update marker color
+                addPropertyMarkers(properties);
+            }
+        } else {
+            alert('Error updating rating: ' + (data.error || 'Unknown error'));
+            location.reload();
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error updating rating');
+        location.reload();
+    });
+}
+
+// Get current rating filter settings (reuse from base.html)
+function getCurrentRatingFilters() {
+    const filters = [];
+    if (document.getElementById('filter_yes').checked) filters.push('yes');
+    if (document.getElementById('filter_no').checked) filters.push('no');
+    if (document.getElementById('filter_maybe').checked) filters.push('maybe');
+    if (document.getElementById('filter_blank').checked) filters.push('blank');
+    return filters;
+}
+
+// Check if a rating should be shown based on current filters (reuse from base.html)
+function shouldShowRating(rating, filters) {
+    if (rating === '' || rating === null) {
+        return filters.includes('blank');
+    }
+    return filters.includes(rating);
+}
+
+// Add event listeners for modal interactions
+document.addEventListener('DOMContentLoaded', function() {
+    // Close modal when clicking outside of it
+    document.getElementById('propertyModal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            closePropertyModal();
+        }
+    });
+    
+    // Close modal when pressing Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            const modal = document.getElementById('propertyModal');
+            if (modal.style.display === 'flex') {
+                closePropertyModal();
+            }
+        }
+    });
+});
+</script>
+
+{% endblock %}

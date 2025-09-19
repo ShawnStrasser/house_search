@@ -74,7 +74,28 @@ CREATE TABLE IF NOT EXISTS grocery (
     user_ratings_total INTEGER
 )
 """)
+
+# create location table only if it doesn't exist
+conn.execute("""
+CREATE TABLE IF NOT EXISTS location (
+    zpid INTEGER,
+    latitude DOUBLE,
+    longitude DOUBLE
+)
+""")
 conn.commit()
+conn.close()
+
+# fetch zpids + addresses that are NOT already in the location table
+conn = duckdb.connect(DB_NAME)
+zpids_addresses_for_location = conn.execute("""
+SELECT p.zpid, pf.full_address
+FROM properties p
+JOIN property_features pf ON p.zpid = pf.zpid
+LEFT JOIN location l ON p.zpid = l.zpid
+WHERE pf.full_address IS NOT NULL 
+  AND l.zpid IS NULL
+""").fetchall()
 conn.close()
 
 # fetch zpids + addresses that are NOT already in the grocery table
@@ -96,16 +117,75 @@ if not MAPS_API_KEY:
 
 gmaps = googlemaps.Client(key=MAPS_API_KEY)
 
-def upsert_grocery_row(zpid, name, drive_time, address, rating, user_ratings_total):
+def get_coordinates_from_address(address, gmaps_client):
+    """
+    Extract latitude and longitude coordinates from an address using Google Maps Geocoding API.
+    
+    Args:
+        address (str): The address to geocode
+        gmaps_client: Initialized Google Maps client
+    
+    Returns:
+        dict: Dictionary with 'lat' and 'lng' keys, or None if address not found
+    
+    Raises:
+        ValueError: If address cannot be geocoded
+        googlemaps.exceptions.ApiError: If API call fails
+    """
+    try:
+        # Geocode the address
+        geocode_result = gmaps_client.geocode(address)
+        
+        if not geocode_result:
+            raise ValueError(f"Address '{address}' could not be found")
+        
+        # Extract coordinates from the first result
+        location = geocode_result[0]['geometry']['location']
+        
+        return {
+            'lat': location['lat'],
+            'lng': location['lng']
+        }
+        
+    except googlemaps.exceptions.ApiError as e:
+        raise googlemaps.exceptions.ApiError(f"Google Maps API error: {e}")
+    except Exception as e:
+        raise ValueError(f"Error geocoding address '{address}': {e}")
+
+def insert_grocery_row(zpid, name, drive_time, address, rating, user_ratings_total):
     conn = duckdb.connect(DB_NAME)
-    # duckdb upsert: delete then insert (portable & simple)
-    conn.execute("DELETE FROM grocery WHERE zpid = ?", [zpid])
+    # Simple insert since we only process zpids not already in the table
     conn.execute(
         "INSERT INTO grocery (zpid, name, drive_time, address, rating, user_ratings_total) VALUES (?, ?, ?, ?, ?, ?)",
         [zpid, name, drive_time, address, rating, user_ratings_total]
     )
     conn.commit()
     conn.close()
+
+def insert_location_row(zpid, latitude, longitude):
+    conn = duckdb.connect(DB_NAME)
+    # Simple insert since we only process zpids not already in the table
+    conn.execute(
+        "INSERT INTO location (zpid, latitude, longitude) VALUES (?, ?, ?)",
+        [zpid, latitude, longitude]
+    )
+    conn.commit()
+    conn.close()
+
+# Process locations first
+print(f"Processing {len(zpids_addresses_for_location)} properties for location coordinates...")
+for zpid, address in zpids_addresses_for_location:
+    print(f"Getting coordinates for {zpid}: {address}")
+    try:
+        coords = get_coordinates_from_address(address, gmaps)
+        insert_location_row(zpid, coords['lat'], coords['lng'])
+        print(f"  -> Coordinates: {coords['lat']}, {coords['lng']}")
+    except Exception as e:
+        print(f"  Error getting coordinates: {e}")
+    
+    time.sleep(SLEEP_BETWEEN_CALLS)
+
+print(f"Location processing complete. Now processing {len(zpids_addresses)} properties for grocery stores...")
 
 for zpid, address in zpids_addresses:
     print(f"Processing {zpid}: {address}")
@@ -177,7 +257,7 @@ for zpid, address in zpids_addresses:
         element = matrix_result['rows'][0]['elements'][0]
         if element.get('status') == 'OK' and 'duration' in element:
             drive_time_minutes = round(element['duration']['value'] / 60)
-            upsert_grocery_row(zpid,
+            insert_grocery_row(zpid,
                                qualifying_store['name'],
                                drive_time_minutes,
                                qualifying_store['address'],
