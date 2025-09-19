@@ -735,7 +735,7 @@ function showPropertyModal(property) {
                                   placeholder="Add your personal notes about this property..."
                                   style="width: 100%; min-height: 80px; padding: 8px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px; font-family: inherit; resize: vertical; box-sizing: border-box;"
                                   onchange="markNoteDirtyModal(${property.zpid})"
-                                  oninput="markNoteDirtyModal(${property.zpid})">${property.note || ''}</textarea>
+                                  oninput="markNoteDirtyModal(${property.zpid})"></textarea>
                         <div style="margin-top: 8px; display: flex; justify-content: space-between; align-items: center;">
                             <div id="modal-note-status-${property.zpid}" style="font-size: 12px; color: #666; min-height: 16px;">
                                 Notes will be saved automatically when you close this modal.
@@ -756,6 +756,15 @@ function showPropertyModal(property) {
     // Create and show modal
     const modal = document.getElementById('propertyModal');
     modal.innerHTML = modalContent;
+    
+    // Safely set the note content after modal creation to avoid template literal injection
+    if (window.passwordCorrect && property.note) {
+        const noteTextarea = document.getElementById('modal-note-' + property.zpid);
+        if (noteTextarea) {
+            noteTextarea.value = property.note;
+        }
+    }
+    
     modal.style.display = 'flex';
     
     // Prevent body scrolling when modal is open
