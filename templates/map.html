@@ -957,8 +957,19 @@ function updateFilters() {
 
 // Handle rating updates from modal
 function updateRatingFromModal(zpid, newRating) {
-    const password = document.getElementById('password').value;
+    // Get password from the hidden field or visible field
+    const passwordField = document.getElementById('password');
+    const password = passwordField ? passwordField.value : '';
+    
     console.log('Updating rating for zpid:', zpid, 'newRating:', newRating, 'password length:', password ? password.length : 0);
+    console.log('Password field found:', !!passwordField, 'Password field type:', passwordField ? passwordField.type : 'none');
+    
+    if (!password) {
+        console.error('No password found - cannot update rating');
+        alert('Password required to update ratings. Please refresh the page and enter your password.');
+        return;
+    }
+    
     updateRating(zpid, newRating, password);
 }
 
