@@ -524,6 +524,7 @@
 // Map initialization and property markers
 let map;
 let markersLayer;
+let zpidToMarker = new Map();
 
 // Initialize map when page loads
 document.addEventListener('DOMContentLoaded', function() {
@@ -573,7 +574,7 @@ function initializeMap() {
     markersLayer = L.layerGroup().addTo(map);
     
     // Add property markers
-    addPropertyMarkers(properties);
+    addPropertyMarkers();
     
     // Fit map to show all markers
     if (validCount > 1) {
@@ -582,11 +583,14 @@ function initializeMap() {
     }
 }
 
-function addPropertyMarkers(properties) {
+function addPropertyMarkers() {
     if (!markersLayer) return;
+    
+    const properties = window.propertiesData || [];
     
     // Clear existing markers
     markersLayer.clearLayers();
+    zpidToMarker.clear();
     
     properties.forEach(property => {
         if (!property.latitude || !property.longitude) return;
@@ -607,11 +611,13 @@ function addPropertyMarkers(properties) {
         
         // Add click handler to open full-screen modal
         marker.on('click', function() {
-            showPropertyModal(property);
+            const latest = (window.propertiesData || []).find(p => String(p.zpid) === String(property.zpid));
+            showPropertyModal(latest || property);
         });
         
-        // Add marker to layer
+        // Add marker to layer and map by zpid
         markersLayer.addLayer(marker);
+        zpidToMarker.set(String(property.zpid), marker);
     });
 }
 
@@ -622,6 +628,23 @@ function getMarkerColor(rating) {
         case 'no': return '#dc3545';
         default: return '#6c757d'; // blank
     }
+}
+
+function updateMarkerColor(zpid, rating) {
+    const marker = zpidToMarker.get(String(zpid));
+    if (!marker) {
+        // Fallback: rebuild markers if we somehow lost the reference
+        addPropertyMarkers();
+        return;
+    }
+    const markerColor = getMarkerColor(rating);
+    const markerIcon = L.divIcon({
+        className: 'custom-marker',
+        html: `<div style="background-color: ${markerColor}; width: 16px; height: 16px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`,
+        iconSize: [16, 16],
+        iconAnchor: [8, 8]
+    });
+    marker.setIcon(markerIcon);
 }
 
 function showPropertyModal(property) {
@@ -722,7 +745,7 @@ function showPropertyModal(property) {
                     ${window.passwordCorrect ? `
                     <div class="rating-container">
                         <label for="modal-rating-${property.zpid}">Your Rating:</label>
-                        <select id="modal-rating-${property.zpid}" class="modal-rating-select" onchange="updateRatingFromModal(${property.zpid}, this.value)">
+                        <select id="modal-rating-${property.zpid}" class="modal-rating-select">
                             <option value="" ${property.rating === '' ? 'selected' : ''}>-</option>
                             <option value="yes" ${property.rating === 'yes' ? 'selected' : ''}>✅ Yes</option>
                             <option value="maybe" ${property.rating === 'maybe' ? 'selected' : ''}>🤔 Maybe</option>
@@ -762,6 +785,16 @@ function showPropertyModal(property) {
         const noteTextarea = document.getElementById('modal-note-' + property.zpid);
         if (noteTextarea) {
             noteTextarea.value = property.note;
+        }
+    }
+    
+    // Add event listener for rating changes
+    if (window.passwordCorrect) {
+        const ratingSelect = document.getElementById('modal-rating-' + property.zpid);
+        if (ratingSelect) {
+            ratingSelect.addEventListener('change', function() {
+                updateRatingFromModal(property.zpid, this.value);
+            });
         }
     }
     
@@ -843,7 +876,7 @@ function saveNoteModal(zpid, noteText, password) {
             
             // Update the property data in memory so the note shows immediately
             const properties = window.propertiesData || [];
-            const property = properties.find(p => p.zpid === zpid);
+            const property = properties.find(p => p.zpid == zpid);
             if (property) {
                 property.note = noteText;
             }
@@ -857,7 +890,8 @@ function saveNoteModal(zpid, noteText, password) {
             }
             if (saveButton) {
                 saveButton.style.display = 'none';
-                saveButton.style.background = '#667eea'; // Reset color
+                saveButton.disabled = false;
+                saveButton.textContent = '💾 Save Note';
             }
             return true;
         } else {
@@ -958,11 +992,11 @@ function updateFilters() {
 // Handle rating updates from modal
 function updateRatingFromModal(zpid, newRating) {
     const password = document.getElementById('password').value;
-    updateRating(zpid, newRating, password);
+    updateRatingMap(zpid, newRating, password);
 }
 
-// Handle rating updates (same as base template but also update marker)
-function updateRating(zpid, newRating, password) {
+// Handle rating updates for map view (includes marker updates)
+function updateRatingMap(zpid, newRating, password) {
     if (!password) {
         alert('Password required to update ratings');
         return;
@@ -980,11 +1014,17 @@ function updateRating(zpid, newRating, password) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            // Update the property data
+            // Update the property data in memory
             const properties = window.propertiesData || [];
-            const property = properties.find(p => p.zpid === zpid);
+            const property = properties.find(p => p.zpid == zpid);
             if (property) {
                 property.rating = newRating;
+            }
+            
+            // Update the modal select value
+            const selectEl = document.getElementById('modal-rating-' + zpid);
+            if (selectEl) {
+                selectEl.value = newRating;
             }
             
             // Check if the new rating should be filtered out
@@ -996,8 +1036,9 @@ function updateRating(zpid, newRating, password) {
                 closePropertyModal();
                 location.reload();
             } else {
-                // Update marker color
-                addPropertyMarkers(properties);
+                // Update marker color and redraw markers
+                updateMarkerColor(zpid, newRating);
+                addPropertyMarkers();
             }
         } else {
             alert('Error updating rating: ' + (data.error || 'Unknown error'));
