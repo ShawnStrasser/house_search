@@ -7,14 +7,13 @@ to focus on properties that are worth re-analyzing.
 The process is as follows:
 1.  Navigate through Zillow search pages.
 2.  For each property listing, check filtering criteria:
-    - Skip if ZPID is in property_scores table with score < 60.8
-    - Skip if ZPID is already in the 'updated' table (already processed)
+    - If listing exists in properties table, update price only
+    - Otherwise, process fully with AI analysis
 3.  For qualifying listings:
     - Scrape fresh property data and update the properties table
     - Extract comprehensive text and high-quality images
     - Send data to Google's Gemini API for feature analysis
     - Update the property_features table with new results
-    - Mark as processed in the 'updated' table
 4.  Continue until all pages are processed or no more qualifying listings found.
 """
 
@@ -48,7 +47,7 @@ from feature_extraction import (
 )
 winsound.Beep(1000, 500)
 # --- CONFIGURATION ---
-DB_PATH = "property_data.db"  # Main database with properties, property_scores, and updated tables
+DB_PATH = "property_data.db"  # Main database with properties, property_scores, and property_features tables
 MODEL = "gemini-2.5-pro" # Using a Gemini model for high quality analysis
 MAX_IMAGES_TO_EXTRACT = 80  # Max images to feed to the model per property
 GOOGLE_API_KEY = os.getenv('GEMINI_API_KEY')
@@ -127,15 +126,7 @@ def setup_database(db_path: str = DB_PATH) -> duckdb.DuckDBPyConnection:
     
     # Create the property_features table with the updated schema
     create_property_features_table(conn)
-    
-    # Create the updated table for tracking processed listings
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS updated (
-            zpid INTEGER,
-            time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    
+
     # Create the manual_inspection table for listings needing human review
     conn.execute("""
         CREATE TABLE IF NOT EXISTS manual_inspection (
@@ -158,56 +149,65 @@ def setup_database(db_path: str = DB_PATH) -> duckdb.DuckDBPyConnection:
     print(f"✅ Database setup complete at '{db_path}'")
     return conn
 
+def update_price_for_existing_zpid(conn: duckdb.DuckDBPyConnection, zpid: int, listing_url: str, html_content: str) -> bool:
+    """
+    Update the price for an existing ZPID without doing full processing.
+    Returns True if successfully updated, False otherwise.
+    """
+    try:
+        # Extract fresh property data from HTML
+        property_data = extract_property_data_from_html(html_content)
+
+        # Check if we have a new price
+        new_price = property_data.get('price')
+
+        # Check current price in database
+        current_price = conn.execute("SELECT price FROM properties WHERE zpid = ?", [zpid]).fetchone()[0]
+
+        # Only update if price has changed
+        if current_price != new_price:
+            conn.execute("UPDATE properties SET price = ? WHERE zpid = ?", [new_price, zpid])
+            conn.commit()
+            if VERBOSE_LOGGING:
+                print(f"    -> 💰 Price updated for ZPID {zpid}: ${current_price} → ${new_price}")
+
+        return True
+
+    except Exception as e:
+        print(f"❌ CRITICAL: Error updating price for ZPID {zpid}: {e}")
+        print("🛑 Price update failure - stopping execution!")
+        raise e
+
 def should_process_zpid(conn: duckdb.DuckDBPyConnection, zpid: int) -> bool:
     """
     Check if a ZPID should be processed based on the following criteria:
-    1. If ZPID is in property_scores table and has score < 60.8, skip it
-    2. If ZPID is already in updated table, skip it
-    3. Otherwise, process it
+    1. If ZPID exists in properties table, update price and skip full processing
+    2. Otherwise, process it fully
     """
     try:
-        # Check if already processed (in updated table)
-        updated_result = conn.execute("SELECT 1 FROM updated WHERE zpid = ?", [zpid]).fetchone()
-        if updated_result is not None:
-            if VERBOSE_LOGGING:
-                print(f"    -> ZPID {zpid} already in updated table. Skipping.")
-            return False
-        
+        # Check if ZPID exists in properties table
+        property_result = conn.execute("SELECT 1 FROM properties WHERE zpid = ?", [zpid]).fetchone()
+        if property_result is not None:
+            return False  # This will be handled by price update logic in main loop
+
         # Check property_scores table
         score_result = conn.execute("SELECT total_score FROM property_scores WHERE zpid = ?", [zpid]).fetchone()
         if score_result is not None:
             total_score = score_result[0]
-            if total_score < 60.8:
-                if VERBOSE_LOGGING:
-                    print(f"    -> ZPID {zpid} has low score ({total_score:.1f}). Skipping.")
-                return False
-            else:
-                if VERBOSE_LOGGING:
-                    print(f"    -> ZPID {zpid} has good score ({total_score:.1f}). Will process.")
-                return True
-        else:
-            # Not in property_scores table, so process it
             if VERBOSE_LOGGING:
-                print(f"    -> ZPID {zpid} not in property_scores table. Will process.")
+                print(f"    -> ZPID {zpid} has score ({total_score:.1f}). Will process fully.")
             return True
-            
+        else:
+            # Not in property_scores table, so process it fully
+            if VERBOSE_LOGGING:
+                print(f"    -> ZPID {zpid} not in property_scores table. Will process fully.")
+            return True
+
     except Exception as e:
         print(f"❌ CRITICAL: Error checking ZPID {zpid}: {e}")
         print("🛑 Database check failure - stopping execution!")
         raise e
 
-def add_to_updated_table(conn: duckdb.DuckDBPyConnection, zpid: int) -> bool:
-    """Add a ZPID to the updated table to mark it as processed."""
-    try:
-        conn.execute("INSERT INTO updated (zpid) VALUES (?)", [zpid])
-        conn.commit()
-        if VERBOSE_LOGGING:
-            print(f"    -> ✅ ZPID {zpid} added to updated table.")
-        return True
-    except Exception as e:
-        print(f"❌ CRITICAL: Error adding ZPID {zpid} to updated table: {e}")
-        print("🛑 Database update failure - stopping execution!")
-        raise e
 
 def add_to_manual_inspection(conn: duckdb.DuckDBPyConnection, zpid: int, listing_url: str, reason: str) -> None:
     """Record a listing that requires manual inspection."""
@@ -407,7 +407,7 @@ def extract_comprehensive_text_content(html_content: str) -> str:
 
 def process_listing(page, zpid: int, listing_url: str, conn: duckdb.DuckDBPyConnection) -> bool:
     """
-    Processes a single listing: scrapes data, updates properties table, calls AI model, saves features, and marks as updated.
+    Processes a single listing: scrapes data, updates properties table, calls AI model, saves features, and saves analysis results.
     """
     try:
         if VERBOSE_LOGGING:
@@ -619,10 +619,7 @@ def process_listing(page, zpid: int, listing_url: str, conn: duckdb.DuckDBPyConn
             print("🛑 Database save failure - this must be fixed!")
             raise Exception(f"CRITICAL FAILURE: Could not save features for ZPID {zpid}")
 
-        # 7. Mark as processed in the updated table
-        if not add_to_updated_table(conn, zpid):
-            print(f"    -> ⚠️ Failed to add ZPID {zpid} to updated table")
-            # Don't return False here - the main work is done
+        # 7. Processing complete
         
         return True
 
@@ -751,8 +748,38 @@ def run_live_extraction():
 
                     print(f"Processing listing {i+1}/{len(listing_links_on_page)} on page {current_page_num} (ZPID: {zpid})...")
 
-                    if not should_process_zpid(db_conn, zpid):
-                        continue
+                    # Check if this ZPID should be processed
+                    should_process = should_process_zpid(db_conn, zpid)
+
+                    if not should_process:
+                        # Check if this is an existing ZPID that needs price update
+                        existing_property = db_conn.execute(
+                            "SELECT 1 FROM properties WHERE zpid = ?", [zpid]
+                        ).fetchone()
+
+                        if existing_property is not None:
+
+                            # Use a new page to get fresh HTML for price update
+                            listing_page = context.new_page()
+                            try:
+                                listing_page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+                                listing_page.goto(link, wait_until='load', timeout=60000)
+                                time.sleep(3 * SPEED_MULTIPLIER)
+                                listing_html = listing_page.content()
+
+                                update_price_for_existing_zpid(db_conn, zpid, link, listing_html)
+
+                            except Exception as e:
+                                print(f"    -> ❌ Error updating price for ZPID {zpid}: {e}")
+                                print("🛑 Price update failure - continuing with next listing...")
+                            finally:
+                                listing_page.close()
+
+                            time.sleep(1 * SPEED_MULTIPLIER) # Be respectful
+                            continue
+                        else:
+                            # Truly skip this ZPID
+                            continue
 
                     # Use a new page for each listing to avoid state conflicts
                     listing_page = context.new_page()

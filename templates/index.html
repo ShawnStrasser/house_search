@@ -1366,14 +1366,62 @@ function submitProperty() {
             
             // Check if this is a "property already exists" message
             if (data.message.includes('Property already exists')) {
-                // Change submit button to "OK" for property exists case
-                submitBtn.textContent = 'OK';
-                submitBtn.onclick = function() {
-                    closeAddPropertyModal();
-                    // Reset button for next use
-                    submitBtn.textContent = 'Add Property';
-                    submitBtn.onclick = function() { submitProperty(); };
-                };
+                // Replace modal content with property details and rating dropdown
+                const modal = document.getElementById('addPropertyModal');
+                const modalContent = modal.querySelector('.modal-content');
+
+                modalContent.innerHTML = `
+                    <div class="modal-header">
+                        <h3>🏠 Property Already Exists</h3>
+                        <span class="close" onclick="closeAddPropertyModal()">&times;</span>
+                    </div>
+                    <div class="modal-body">
+                        <div style="margin-bottom: 15px; padding: 15px; background: #f8f9fa; border-radius: 6px;">
+                            <p style="margin: 0; font-size: 14px; color: #666;">
+                                ${data.message}
+                            </p>
+                        </div>
+
+                        <div style="margin-bottom: 20px;">
+                            <label for="property-rating-${data.zpid}" style="display: block; margin-bottom: 8px; font-weight: 600; color: #333;">Your Current Rating:</label>
+                            <select id="property-rating-${data.zpid}" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 4px; font-size: 14px;">
+                                <option value="" ${data.current_rating === '' ? 'selected' : ''}>-</option>
+                                <option value="yes" ${data.current_rating === 'yes' ? 'selected' : ''}>✅ Yes</option>
+                                <option value="maybe" ${data.current_rating === 'maybe' ? 'selected' : ''}>🤔 Maybe</option>
+                                <option value="no" ${data.current_rating === 'no' ? 'selected' : ''}>❌ No</option>
+                            </select>
+                        </div>
+
+                        <div style="background: #e8f4fd; padding: 10px; border-radius: 4px; border-left: 3px solid #667eea; margin-bottom: 15px;">
+                            <p style="margin: 0; font-size: 13px; color: #4a5568;">
+                                <strong>💡 Tip:</strong> Update your rating above or click "Keep Current" to maintain your existing rating.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="modal-btn modal-btn-secondary" onclick="closeAddPropertyModal()">Cancel</button>
+                        <button type="button" class="modal-btn modal-btn-primary" onclick="updatePropertyRating(${data.zpid})" id="updateRatingBtn">Update Rating</button>
+                        <button type="button" class="modal-btn" onclick="closeAddPropertyModal()" style="background: #28a745; color: white;">Keep Current</button>
+                    </div>
+                `;
+
+                // Add event listener for rating changes
+                const ratingSelect = document.getElementById(`property-rating-${data.zpid}`);
+                if (ratingSelect) {
+                    ratingSelect.addEventListener('change', function() {
+                        const updateBtn = document.getElementById('updateRatingBtn');
+                        if (updateBtn) {
+                            updateBtn.style.display = this.value !== data.current_rating ? 'inline-block' : 'none';
+                        }
+                    });
+                }
+
+                // Initially hide update button if rating hasn't changed
+                const updateBtn = document.getElementById('updateRatingBtn');
+                if (updateBtn) {
+                    updateBtn.style.display = 'none';
+                }
+
             } else {
                 // For "added for review" messages, close after delay
                 setTimeout(() => {
@@ -1390,6 +1438,77 @@ function submitProperty() {
         submitBtn.disabled = false;
         statusDiv.textContent = '❌ Network error. Please try again.';
         statusDiv.style.color = '#dc3545';
+    });
+}
+
+// Update property rating from the property exists modal
+function updatePropertyRating(zpid) {
+    const password = document.getElementById('password').value;
+    if (!password) {
+        alert('Password required to update ratings');
+        return;
+    }
+
+    const ratingSelect = document.getElementById(`property-rating-${zpid}`);
+    if (!ratingSelect) {
+        alert('Rating selector not found');
+        return;
+    }
+
+    const newRating = ratingSelect.value;
+
+    // Show loading state
+    const updateBtn = document.getElementById('updateRatingBtn');
+    if (updateBtn) {
+        updateBtn.disabled = true;
+        updateBtn.textContent = 'Updating...';
+    }
+
+    const formData = new FormData();
+    formData.append('zpid', zpid);
+    formData.append('rating', newRating);
+    formData.append('password', password);
+
+    fetch('/update_rating', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (updateBtn) {
+            updateBtn.disabled = false;
+            updateBtn.textContent = 'Update Rating';
+        }
+
+        if (data.success) {
+            // Close modal after successful update
+            closeAddPropertyModal();
+
+            // Show success message briefly
+            const statusDiv = document.getElementById('urlStatus');
+            if (statusDiv) {
+                statusDiv.textContent = '✅ Rating updated successfully!';
+                statusDiv.style.color = '#28a745';
+                setTimeout(() => {
+                    statusDiv.textContent = '';
+                }, 2000);
+            }
+
+            // Reload the page to reflect the updated rating
+            setTimeout(() => {
+                location.reload();
+            }, 500);
+        } else {
+            alert('Error updating rating: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        console.error('Error updating rating:', error);
+        if (updateBtn) {
+            updateBtn.disabled = false;
+            updateBtn.textContent = 'Update Rating';
+        }
+        alert('Error updating rating');
     });
 }
 

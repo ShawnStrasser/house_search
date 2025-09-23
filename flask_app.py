@@ -849,13 +849,13 @@ def add_property():
         if existing_property:
             # Property already exists - return crime and grocery info using existing functions
             zpid_val, violent_crime, property_crime, drive_time = existing_property
-            
+
             # Calculate average crime for emoji (same logic as main route)
             if violent_crime is not None and property_crime is not None:
                 avg_crime_raw = (violent_crime * 2.0 + property_crime) / 3.0
             else:
                 avg_crime_raw = None
-            
+
             # Use existing crime emoji function - we need to calculate icon level
             # This is simplified - in a real scenario you'd want to get the full dataset ranges
             # For now, use a reasonable default mapping
@@ -873,18 +873,30 @@ def add_property():
                     crime_icon_level = 0  # High crime
             else:
                 crime_icon_level = None
-                
+
             crime_emoji = get_crime_emoji(crime_icon_level)
-            
+
             # Format drive time using existing color logic
             if drive_time is not None:
                 drive_time_str = f"{drive_time}min"
             else:
                 drive_time_str = "🚫 No data"
-            
+
+            # Get current rating from ratings database
+            current_rating = ratings_conn.execute(
+                "SELECT rating FROM rating WHERE zpid = ?", (zpid_int,)
+            ).fetchone()
+            current_rating = current_rating[0] if current_rating else ''
+
             message = f"✅ Property already exists! {crime_emoji} Crime | 🛒 {drive_time_str}"
             ratings_conn.close()
-            return jsonify({'success': True, 'message': message})
+            return jsonify({
+                'success': True,
+                'message': message,
+                'property_exists': True,
+                'current_rating': current_rating,
+                'zpid': zpid_int
+            })
         
         # Check if already in for_review table
         existing_review = ratings_conn.execute(
