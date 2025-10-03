@@ -1,3 +1,9 @@
+'''
+This script is used to find the nearest chain or non-chain popular grocery store to a property and store the information in the database.
+It also stores the latitude and longitude of the property.
+'''
+
+
 import os
 import re
 import time
@@ -5,10 +11,11 @@ import duckdb
 import googlemaps
 
 DB_NAME = 'property_data.db'
-REVIEW_THRESHOLD = 200
+REVIEW_THRESHOLD = 200 # minimum number of reviews for a store to be considered if not a chain
 SLEEP_BETWEEN_CALLS = 0.0  # increase if you hit rate limits
 
 CHAIN_GROCERS = [
+    # list of chain grocery stores accepted without review threshold
     "Albertsons",
     "Safeway",
     "Fred Meyer",

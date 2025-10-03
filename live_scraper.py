@@ -109,6 +109,33 @@ def get_for_review_links() -> list[str]:
             print(f"⚠️ Could not retrieve for_review links: {e}")
         return []
 
+def remove_from_for_review(listing_url: str) -> None:
+    """
+    Remove a successfully processed listing from the for_review table in SQLite Cloud.
+    """
+    try:
+        import os
+        RATINGS_DB_URL = os.getenv('RATINGS_DB_URL', '')
+        
+        if not RATINGS_DB_URL:
+            return
+        
+        try:
+            import sqlitecloud
+        except ImportError:
+            return
+        
+        conn = sqlitecloud.connect(RATINGS_DB_URL)
+        conn.execute("DELETE FROM for_review WHERE zillow_url = ?", [listing_url])
+        conn.close()
+        
+        if VERBOSE_LOGGING:
+            print(f"    -> ✅ Removed from for_review table")
+        
+    except Exception as e:
+        if VERBOSE_LOGGING:
+            print(f"    -> ⚠️ Could not remove from for_review table: {e}")
+
 def setup_database(db_path: str = DB_PATH) -> duckdb.DuckDBPyConnection:
     """
     Connect to DuckDB and create all necessary tables for the new simplified schema.
@@ -149,18 +176,66 @@ def setup_database(db_path: str = DB_PATH) -> duckdb.DuckDBPyConnection:
     print(f"✅ Database setup complete at '{db_path}'")
     return conn
 
-def update_price_for_existing_zpid(conn: duckdb.DuckDBPyConnection, zpid: int, listing_url: str, html_content: str) -> bool:
+def extract_prices_from_search_page(page) -> Dict[int, int]:
+    """
+    Extract all ZPIDs and their prices from the current search results page.
+    Returns a dictionary mapping ZPID -> price.
+    """
+    try:
+        prices_dict = page.evaluate("""
+            () => {
+                const cards = document.querySelectorAll('article[data-test="property-card"]');
+                const results = {};
+                
+                cards.forEach((card) => {
+                    // Extract ZPID from the link href within the card
+                    const link = card.querySelector('a[href*="_zpid"]');
+                    const href = link ? link.href : null;
+                    const zpidMatch = href ? href.match(/\\/(\\d+)_zpid\\//) : null;
+                    const zpid = zpidMatch ? parseInt(zpidMatch[1]) : null;  // Keep as integer!
+                    
+                    // Find price element
+                    const priceElement = card.querySelector('[data-test="property-card-price"]');
+                    const priceText = priceElement ? priceElement.textContent.trim() : null;
+                    
+                    if (zpid && priceText) {
+                        // Parse price (remove $ and commas, convert to int)
+                        const priceMatch = priceText.match(/\\$([\\d,]+)/);
+                        if (priceMatch) {
+                            const price = parseInt(priceMatch[1].replace(/,/g, ''));
+                            results[zpid] = price;
+                        }
+                    }
+                });
+                
+                return results;
+            }
+        """)
+        
+        # Convert string keys to integers (JavaScript returns object keys as strings)
+        prices_dict = {int(k): v for k, v in prices_dict.items()}
+        
+        if VERBOSE_LOGGING:
+            print(f"    -> Extracted prices for {len(prices_dict)} properties from search page")
+        
+        return prices_dict
+        
+    except Exception as e:
+        if VERBOSE_LOGGING:
+            print(f"    -> ⚠️ Error extracting prices from search page: {e}")
+        return {}
+
+def update_price_for_existing_zpid(conn: duckdb.DuckDBPyConnection, zpid: int, new_price: int) -> bool:
     """
     Update the price for an existing ZPID without doing full processing.
     Returns True if successfully updated, False otherwise.
+    
+    Args:
+        conn: Database connection
+        zpid: Property ZPID
+        new_price: New price extracted from search results
     """
     try:
-        # Extract fresh property data from HTML
-        property_data = extract_property_data_from_html(html_content)
-
-        # Check if we have a new price
-        new_price = property_data.get('price')
-
         # Check current price in database
         current_price = conn.execute("SELECT price FROM properties WHERE zpid = ?", [zpid]).fetchone()[0]
 
@@ -181,16 +256,26 @@ def update_price_for_existing_zpid(conn: duckdb.DuckDBPyConnection, zpid: int, l
 def should_process_zpid(conn: duckdb.DuckDBPyConnection, zpid: int) -> bool:
     """
     Check if a ZPID should be processed based on the following criteria:
-    1. If ZPID exists in properties table, update price and skip full processing
+    1. If ZPID exists in BOTH properties AND property_features tables, skip full processing (only update price)
     2. Otherwise, process it fully
     """
     try:
         # Check if ZPID exists in properties table
         property_result = conn.execute("SELECT 1 FROM properties WHERE zpid = ?", [zpid]).fetchone()
-        if property_result is not None:
-            return False  # This will be handled by price update logic in main loop
-
-        # Check property_scores table
+        
+        # Check if ZPID exists in property_features table  
+        features_result = conn.execute("SELECT 1 FROM property_features WHERE zpid = ?", [zpid]).fetchone()
+        
+        # Only skip processing if it exists in BOTH properties AND property_features
+        if property_result is not None and features_result is not None:
+            return False  # Already fully processed, only needs price update
+        
+        # If in properties but NOT in features, or not in properties at all, process it
+        if property_result is not None and features_result is None:
+            if VERBOSE_LOGGING:
+                print(f"    -> ZPID {zpid} in properties but missing features. Will process fully.")
+        
+        # Check property_scores table for additional context
         score_result = conn.execute("SELECT total_score FROM property_scores WHERE zpid = ?", [zpid]).fetchone()
         if score_result is not None:
             total_score = score_result[0]
@@ -712,6 +797,9 @@ def run_live_extraction():
 
                 print("✅ Reached the bottom of the page.")
 
+                # Extract prices from search results page ONCE (no need to open individual listings)
+                zpid_to_price = extract_prices_from_search_page(page)
+
                 # Collect all listing URLs and the next page link BEFORE navigating away
                 listing_links_on_page = []
                 selectors = ['a[href*="/homedetails/"]', '.property-card a', 'a[href*="/zpid/"]']
@@ -758,24 +846,18 @@ def run_live_extraction():
                         ).fetchone()
 
                         if existing_property is not None:
-
-                            # Use a new page to get fresh HTML for price update
-                            listing_page = context.new_page()
-                            try:
-                                listing_page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-                                listing_page.goto(link, wait_until='load', timeout=60000)
-                                time.sleep(3 * SPEED_MULTIPLIER)
-                                listing_html = listing_page.content()
-
-                                update_price_for_existing_zpid(db_conn, zpid, link, listing_html)
-
-                            except Exception as e:
-                                print(f"    -> ❌ Error updating price for ZPID {zpid}: {e}")
-                                print("🛑 Price update failure - continuing with next listing...")
-                            finally:
-                                listing_page.close()
-
-                            time.sleep(1 * SPEED_MULTIPLIER) # Be respectful
+                            # Update price using data from search results page (no need to open listing)
+                            if zpid in zpid_to_price:
+                                try:
+                                    update_price_for_existing_zpid(db_conn, zpid, zpid_to_price[zpid])
+                                except Exception as e:
+                                    print(f"    -> ❌ Error updating price for ZPID {zpid}: {e}")
+                                    print("🛑 Price update failure - continuing with next listing...")
+                            else:
+                                if VERBOSE_LOGGING:
+                                    print(f"    -> ⚠️ ZPID {zpid} not found in search results, skipping price update")
+                            
+                            time.sleep(1 * SPEED_MULTIPLIER)
                             continue
                         else:
                             # Truly skip this ZPID
@@ -786,6 +868,10 @@ def run_live_extraction():
                     try:
                         listing_page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
                         process_listing(listing_page, zpid, link, db_conn)
+                        
+                        # If processing was successful, remove from for_review table
+                        remove_from_for_review(link)
+                        
                     except Exception as e:
                         print(f"    -> ❌ An error occurred while scraping ZPID {zpid}: {e}")
                         print("🛑 ALL ERRORS ARE CRITICAL - STOPPING ENTIRE PROCESS!")
