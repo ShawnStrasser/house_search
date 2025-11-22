@@ -48,7 +48,8 @@ from feature_extraction import (
 winsound.Beep(1000, 500)
 # --- CONFIGURATION ---
 DB_PATH = "property_data.db"  # Main database with properties, property_scores, and property_features tables
-MODEL = "gemini-2.5-pro" # Using a Gemini model for high quality analysis
+#MODEL = "gemini-2.5-pro" # Using a Gemini model for high quality analysis
+MODEL = "gemini-3-pro-preview"
 MAX_IMAGES_TO_EXTRACT = 80  # Max images to feed to the model per property
 GOOGLE_API_KEY = os.getenv('GEMINI_API_KEY')
 
