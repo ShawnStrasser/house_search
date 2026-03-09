@@ -142,6 +142,65 @@ def normalize_weights(weights: dict) -> dict:
             
     return normalized
 
+def ensure_local_database_schema():
+    """Ensure the local DuckDB schema has the columns the app expects."""
+    conn = duckdb.connect(DB_PATH)
+    try:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS properties (
+                zpid INTEGER PRIMARY KEY,
+                source_url TEXT,
+                price INTEGER,
+                status TEXT
+            )
+            """
+        )
+
+        columns = {row[1] for row in conn.execute("PRAGMA table_info('properties')").fetchall()}
+        if 'status' not in columns:
+            conn.execute("ALTER TABLE properties ADD COLUMN status TEXT")
+            logger.info("Added status column to local properties table")
+        else:
+            logger.info("Local properties table already has status column. Columns: %s", sorted(columns))
+
+        conn.commit()
+    finally:
+        conn.close()
+
+def get_available_statuses():
+    """Return all distinct non-blank property statuses for filter controls."""
+    conn = duckdb.connect(DB_PATH, read_only=True)
+    try:
+        rows = conn.execute(
+            """
+            SELECT DISTINCT status
+            FROM properties
+            WHERE status IS NOT NULL AND TRIM(status) <> ''
+            ORDER BY status
+            """
+        ).fetchall()
+        return [row[0] for row in rows]
+    except Exception as e:
+        logger.warning(f"Could not load available statuses: {e}")
+        return []
+    finally:
+        conn.close()
+
+def apply_status_filter(results_df, status_filter: list):
+    """Apply the requested status filter to a property DataFrame."""
+    if not status_filter:
+        return results_df
+
+    normalized_status = results_df['status'].fillna('').astype(str).str.strip()
+    selected_statuses = {status for status in status_filter if status != 'blank'}
+
+    mask = normalized_status.isin(selected_statuses)
+    if 'blank' in status_filter:
+        mask = mask | (normalized_status == '')
+
+    return results_df[mask]
+
 def generate_scoring_sql(weights: dict, params: dict, financing_filter: list = None) -> str:
     """Generate SQL query for property scoring"""
     sql = """
@@ -150,6 +209,7 @@ def generate_scoring_sql(weights: dict, params: dict, financing_filter: list = N
             p.zpid,
             p.source_url,
             p.price,
+            p.status,
             pf.full_address,
             pf.city,
             pf.county,
@@ -357,6 +417,7 @@ def generate_scoring_sql(weights: dict, params: dict, financing_filter: list = N
         bf.county,
         bf.full_address,
         bf.price,
+        bf.status,
         bf.beds,
         bf.baths,
         bf.home_size_sqft,
@@ -660,6 +721,9 @@ def index():
         rating_filter = request.args.getlist('rating_filter')
         if not rating_filter:
             rating_filter = ['yes', 'maybe', 'blank']  # Default filters
+
+        status_filter = request.args.getlist('status_filter')
+        available_statuses = get_available_statuses()
             
         # Get financing eligibility filter
         financing_filter = request.args.getlist('financing_filter')
@@ -746,6 +810,9 @@ def index():
         if 'blank' in allowed_ratings:
             allowed_ratings.add('')
         results_df = results_df[results_df['rating'].isin(allowed_ratings)]
+
+        # Apply status filter
+        results_df = apply_status_filter(results_df, status_filter)
         
         # Apply minimum score threshold filter (only for blank ratings)
         if min_score_threshold > 0:
@@ -786,6 +853,8 @@ def index():
                              properties=properties,
                              password_correct=password_correct,
                              rating_filter=rating_filter,
+                             status_filter=status_filter,
+                             available_statuses=available_statuses,
                              financing_filter=financing_filter,
                              min_score_threshold=min_score_threshold,
                              score_min=score_min,
@@ -998,6 +1067,9 @@ def map_view():
         rating_filter = request.args.getlist('rating_filter')
         if not rating_filter:
             rating_filter = ['yes', 'maybe', 'blank']  # Default filters
+
+        status_filter = request.args.getlist('status_filter')
+        available_statuses = get_available_statuses()
             
         # Get financing eligibility filter
         financing_filter = request.args.getlist('financing_filter')
@@ -1083,6 +1155,9 @@ def map_view():
         if 'blank' in allowed_ratings:
             allowed_ratings.add('')
         results_df = results_df[results_df['rating'].isin(allowed_ratings)]
+
+        # Apply status filter
+        results_df = apply_status_filter(results_df, status_filter)
         
         # Apply minimum score threshold filter (only for blank ratings)
         if min_score_threshold > 0:
@@ -1110,6 +1185,8 @@ def map_view():
                              properties=properties,
                              password_correct=password_correct,
                              rating_filter=rating_filter,
+                             status_filter=status_filter,
+                             available_statuses=available_statuses,
                              financing_filter=financing_filter,
                              min_score_threshold=min_score_threshold,
                              score_min=score_min,
@@ -1117,7 +1194,7 @@ def map_view():
                              request=request)
                              
     except Exception as e:
-        logger.error(f"Error in map route: {e}")
+        logger.exception(f"Error in map route: {e}")
         return render_template('error.html', error=str(e))
 
 @app.route('/health')
@@ -1192,6 +1269,9 @@ def optimize_weights():
         rating_filter = request.form.getlist('rating_filter')
         if not rating_filter:
             rating_filter = ['yes', 'maybe', 'blank']  # Default filters
+
+        status_filter = request.form.getlist('status_filter')
+        available_statuses = get_available_statuses()
         
         # Get minimum score threshold filter
         min_score_threshold = request.form.get('min_score_threshold', '0')
@@ -1234,9 +1314,20 @@ def optimize_weights():
                 'error': f'Could not load ratings: {str(e)}'
             })
         
+        properties_df['rating'] = properties_df['zpid'].map(lambda x: ratings_dict.get(x, ''))
+        properties_df = apply_status_filter(properties_df, status_filter)
+
+        if len(properties_df) == 0:
+            return jsonify({
+                'success': False,
+                'error': 'No properties found for the selected status filters'
+            })
+
+        filtered_zpids = set(properties_df['zpid'])
+
         # Filter out blank ratings for optimization
         filtered_ratings = {zpid: rating for zpid, rating in ratings_dict.items() 
-                          if rating in ['yes', 'maybe', 'no']}
+                         if rating in ['yes', 'maybe', 'no'] and zpid in filtered_zpids}
         
         if len(filtered_ratings) < 10:
             return jsonify({
@@ -1263,6 +1354,7 @@ def optimize_weights():
                 
                 # Add same enrichment as in main route
                 new_properties_df['rating'] = new_properties_df['zpid'].map(lambda x: filtered_ratings.get(x, ''))
+                new_properties_df = apply_status_filter(new_properties_df, status_filter)
                 new_properties_df['city_state'] = new_properties_df['full_address'].apply(extract_city_from_address)
                 new_properties_df['drive_time_color'] = new_properties_df['drive_time'].apply(get_drive_time_color)
                 new_properties_df['school_rating_color'] = new_properties_df['avg_school_rating'].apply(get_school_rating_color)
@@ -1320,7 +1412,7 @@ def optimize_weights():
                     score_min, score_max = 0.0, 100.0
                             
             except Exception as e:
-                logger.error(f"Error generating new property data: {e}")
+                logger.exception(f"Error generating new property data: {e}")
                 properties_list = None
                 score_min, score_max = 0.0, 100.0
         
@@ -1346,7 +1438,7 @@ def optimize_weights():
         return jsonify(response_data)
         
     except Exception as e:
-        logger.error(f"Weight optimization error: {e}")
+        logger.exception(f"Weight optimization error: {e}")
         return jsonify({
             'success': False,
             'error': str(e),
@@ -1356,6 +1448,7 @@ def optimize_weights():
         }), 500
 
 # Initialize databases and start the keepalive thread when the app starts
+ensure_local_database_schema()
 initialize_databases()
 start_keepalive_thread()
 

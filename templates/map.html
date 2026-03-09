@@ -101,6 +101,25 @@
                         </div>
                     </div>
                 </div>
+                <div class="filter-column">
+                    <label>Show listing status:</label>
+                    <div class="checkbox-group">
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="filter_status_blank" name="status_filter" value="blank"
+                                   {% if not status_filter or 'blank' in status_filter %}checked{% endif %}
+                                   onchange="updateFilters()">
+                            <label for="filter_status_blank">⚪ Blank</label>
+                        </div>
+                        {% for listing_status in available_statuses %}
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="filter_status_{{ loop.index }}" name="status_filter" value="{{ listing_status }}"
+                                   {% if not status_filter or listing_status in status_filter %}checked{% endif %}
+                                   onchange="updateFilters()">
+                            <label for="filter_status_{{ loop.index }}">{{ listing_status.replace('_', ' ')|title }}</label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
             </div>
         </div>
 
