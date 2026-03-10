@@ -26,8 +26,10 @@ import json
 import base64
 import time
 import random
+import sys
 import subprocess
 import traceback
+from datetime import datetime
 from typing import Optional, Dict, Any, List
 import io
 
@@ -37,6 +39,7 @@ from bs4 import BeautifulSoup
 import google.generativeai as genai
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
 from playwright.sync_api import sync_playwright
+from playwright_stealth import Stealth
 from PIL import Image
 
 import winsound
@@ -62,7 +65,7 @@ if not GOOGLE_API_KEY:
     raise RuntimeError("GEMINI_API_KEY environment variable is required but not set")
 
 # Global speed multiplier for all wait times (0.5 = 2x faster, 1.0 = normal speed, 2.0 = 2x slower)
-SPEED_MULTIPLIER = 2
+SPEED_MULTIPLIER = 3
 
 # Scraper settings
 HEADLESS_MODE = False
@@ -80,6 +83,40 @@ CHROME_USER_DATA_DIR = r'C:\Users\shawn\chrome-cdp-profile'
 
 # Initialize Google Gemini client
 genai.configure(api_key=GOOGLE_API_KEY)
+
+# Checkpoint file for resume-after-interruption
+CHECKPOINT_FILE = "scraper_checkpoint.json"
+
+def save_checkpoint(page_num: int, listing_index: int) -> None:
+    """Save scraping progress so a run can resume after interruption."""
+    try:
+        with open(CHECKPOINT_FILE, 'w') as f:
+            json.dump({
+                "current_page_num": page_num,
+                "resume_listing_index": listing_index,
+                "saved_at": datetime.now().isoformat(),
+            }, f, indent=2)
+    except Exception as e:
+        if VERBOSE_LOGGING:
+            print(f"    -> ⚠️ Could not save checkpoint: {e}")
+
+def load_checkpoint() -> Optional[dict]:
+    """Load a previous checkpoint if one exists."""
+    try:
+        if os.path.exists(CHECKPOINT_FILE):
+            with open(CHECKPOINT_FILE, 'r') as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return None
+
+def clear_checkpoint() -> None:
+    """Remove the checkpoint file on successful completion."""
+    try:
+        if os.path.exists(CHECKPOINT_FILE):
+            os.remove(CHECKPOINT_FILE)
+    except Exception:
+        pass
 
 
 def get_model_startup_info(model_name: str) -> str:
@@ -278,6 +315,19 @@ def mouse_wander(page, steps: int = 3) -> None:
     except Exception:
         pass
 
+def slightly_shuffle(lst: list, chunk_size: int = 3) -> list:
+    """
+    Shuffle within small chunks rather than completely randomizing.
+    Nearby items may swap positions but the overall order stays close to original.
+    Mimics how a human eye skips around a list slightly rather than reading top-to-bottom.
+    """
+    result = list(lst)
+    for i in range(0, len(result), chunk_size):
+        chunk = result[i:i + chunk_size]
+        random.shuffle(chunk)
+        result[i:i + chunk_size] = chunk
+    return result
+
 def human_dwell_pause(page) -> None:
     """
     Log-normal dwell time mimicking how humans read property pages.
@@ -315,24 +365,25 @@ def scroll_like_mouse_wheel(page, target_distance: int = None) -> None:
     """
     Simulate realistic mouse wheel scrolling - multiple rapid small scrolls.
     Real users do 3-8 rapid wheel ticks, then pause briefly to scan content.
+    Pass a negative target_distance to scroll upward.
     """
     if target_distance is None:
-        # Random burst of scrolling
         target_distance = random.randint(800, 2000)
     
-    scrolled = 0
+    direction = -1 if target_distance < 0 else 1
+    remaining = abs(target_distance)
     ticks = 0
     max_ticks = 15  # Safety limit
     
-    while scrolled < target_distance and ticks < max_ticks:
+    while remaining > 0 and ticks < max_ticks:
         tick_distance = human_scroll_px()
         try:
-            page.mouse.wheel(0, tick_distance)
+            page.mouse.wheel(0, tick_distance * direction)
         except Exception:
             pass
-        scrolled += tick_distance
+        remaining -= tick_distance
         ticks += 1
-        # Tiny delay between wheel ticks (10-30ms) - much faster than before
+        # Tiny delay between wheel ticks (10-30ms)
         time.sleep(random.uniform(0.01, 0.03))
     
     # Brief pause after the burst to "look at content"
@@ -452,6 +503,47 @@ def pause_for_challenge_resolution(page, context_label: str) -> bool:
     print("🧭 Please solve it in the open browser window.")
     send_telegram_message(f"🤖 Captcha/challenge detected: {context_label}")
 
+    solver_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "solve_captcha.py")
+    auto_solver_attempted = False
+    try:
+        if os.path.exists(solver_path):
+            auto_solver_attempted = True
+            print("🤖 Attempting automatic captcha solve with solve_captcha.py...")
+            run_result = subprocess.run(
+                [sys.executable, solver_path],
+                capture_output=True,
+                text=True,
+                timeout=90,
+            )
+            if VERBOSE_LOGGING:
+                print(f"🤖 Auto-solver exit code: {run_result.returncode}")
+        else:
+            if VERBOSE_LOGGING:
+                print(f"⚠️ Auto-solver not found at: {solver_path}")
+    except subprocess.TimeoutExpired:
+        if VERBOSE_LOGGING:
+            print("⚠️ Auto-solver timed out.")
+    except Exception as e:
+        if VERBOSE_LOGGING:
+            print(f"⚠️ Auto-solver execution error: {e}")
+
+    if auto_solver_attempted:
+        print("⏳ Waiting up to 20s for captcha challenge to clear...")
+        auto_solve_deadline = time.time() + 20
+        while time.time() < auto_solve_deadline:
+            try:
+                page.wait_for_load_state('domcontentloaded', timeout=3000)
+            except Exception:
+                pass
+            if not is_anti_bot_challenge_present(page):
+                print("✅ Auto-solver resolved captcha challenge.")
+                send_telegram_message(f"✅ Captcha solved automatically: {context_label}")
+                return True
+            sleep_jitter(2.0, 0.4)
+
+        print("⚠️ Auto-solver failed to resolve captcha challenge.")
+        send_telegram_message(f"❌ Captcha auto-solve failed: {context_label}")
+
     while True:
         user_input = input("Press Enter after solving (or type 'skip' to skip this listing): ").strip().lower()
         if user_input == "skip":
@@ -514,6 +606,7 @@ def launch_debug_chrome() -> None:
 def create_browser_session(playwright):
     """
     Attach to Chrome exposed via remote debugging.
+    Reuses existing Zillow search/listing tabs when available to support checkpoint resume.
     """
     if BROWSER_MODE == 'launch_chrome':
         launch_debug_chrome()
@@ -531,10 +624,32 @@ def create_browser_session(playwright):
     context = browser.contexts[0]
     owns_browser = False
 
-    page = context.new_page()
-    listing_page = context.new_page()
-    page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-    listing_page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+    # Try to reuse existing Zillow tabs rather than always opening fresh ones.
+    # This lets the checkpoint resume system pick up where the browser was left off.
+    page = None
+    listing_page = None
+    for existing in context.pages:
+        try:
+            url = existing.url or ''
+            if page is None and '/homes/for_sale/' in url:
+                page = existing
+                if VERBOSE_LOGGING:
+                    print(f"   Reusing existing search tab: {url[:80]}")
+            elif listing_page is None and 'zillow.com' in url and existing is not page:
+                listing_page = existing
+                if VERBOSE_LOGGING:
+                    print(f"   Reusing existing listing tab: {url[:80]}")
+        except Exception:
+            pass
+
+    if page is None:
+        page = context.new_page()
+    if listing_page is None:
+        listing_page = context.new_page()
+
+    _stealth = Stealth()
+    _stealth.apply_stealth_sync(page)
+    _stealth.apply_stealth_sync(listing_page)
     return browser, context, page, listing_page, owns_browser
 
 def extract_prices_from_search_page(page) -> Dict[int, int]:
@@ -632,7 +747,8 @@ def refresh_existing_listing_status(
         # Bring tab to front and navigate
         page.bring_to_front()
         page.goto(listing_url, wait_until='load', timeout=60000)
-        sleep_jitter(2, 0.35)
+        mouse_wander(page)
+        sleep_jitter(3, 0.4)
         if not pause_for_challenge_resolution(page, f"status refresh (ZPID {zpid})"):
             if VERBOSE_LOGGING:
                 print(f"    -> ⏭️ Skipping status refresh for ZPID {zpid} after unresolved challenge.")
@@ -925,18 +1041,121 @@ def extract_comprehensive_text_content(html_content: str) -> str:
             script.decompose()
         
         main_content = soup.find('div', {'data-test': 'hdp-for-sale-page-content'}) or soup
-        text_content = main_content.get_text(separator=' ', strip=True)
-        
-        lines = [line.strip() for line in text_content.split('\n') if line.strip()]
-        meaningful_lines = [
-            line for line in lines
-            if len(line) > 15 and len(line.split()) > 2 and 'cookie' not in line.lower()
-        ]
-        
+
+        # Preserve natural line boundaries. Using a space separator can collapse the
+        # whole page into one line, and a single blocked token (e.g. "cookie")
+        # would then incorrectly remove all extracted text.
+        text_content = main_content.get_text(separator='\n', strip=True)
+        lines = [line.strip() for line in text_content.splitlines() if line.strip()]
+
+        blocked_tokens = ("cookie", "privacy", "terms", "consent", "do not sell")
+        meaningful_lines: List[str] = []
+        for line in lines:
+            if len(line) <= 15 or len(line.split()) <= 2:
+                continue
+            lower_line = line.lower()
+            # Skip legal/navigation boilerplate when it's short, but do not discard
+            # long descriptive listing text just because one token appears.
+            if any(token in lower_line for token in blocked_tokens) and len(line) < 120:
+                continue
+            meaningful_lines.append(line)
+
+        # Fallback: if aggressive filtering removed everything, return a relaxed
+        # extraction rather than failing the entire listing.
+        if not meaningful_lines:
+            relaxed_lines = [
+                line for line in lines
+                if len(line) > 15 and len(line.split()) > 2
+            ]
+            meaningful_lines = relaxed_lines
+
         return '\n'.join(meaningful_lines[:200]) # Limit lines to keep it manageable
     except Exception as e:
         print(f"⚠️ Error extracting comprehensive text: {e}")
         return ""
+
+def _preview_text(value: str, max_len: int = 220) -> str:
+    """Normalize whitespace and return a short preview for logs."""
+    if not value:
+        return ""
+    normalized = re.sub(r"\s+", " ", value).strip()
+    if len(normalized) <= max_len:
+        return normalized
+    return normalized[:max_len] + "..."
+
+def build_text_extraction_diagnostics(page, zpid: int, listing_url: str, listing_html: str, extracted_text: str) -> str:
+    """
+    Build actionable diagnostics when listing text extraction returns empty content.
+    """
+    diagnostics = {
+        "zpid": zpid,
+        "listing_url": listing_url,
+        "page_url": "unknown",
+        "page_title": "unknown",
+        "ready_state": "unknown",
+        "html_length": len(listing_html or ""),
+        "extracted_text_length": len(extracted_text or ""),
+        "body_text_length": None,
+        "main_content_selector_found": None,
+        "json_ld_count": None,
+        "captcha_signals": [],
+        "html_preview": _preview_text(listing_html, 280),
+        "body_text_preview": "",
+    }
+
+    try:
+        diagnostics["page_url"] = page.url or "unknown"
+    except Exception:
+        pass
+
+    try:
+        diagnostics["page_title"] = page.title() or "unknown"
+    except Exception:
+        pass
+
+    try:
+        diagnostics["ready_state"] = page.evaluate("() => document.readyState") or "unknown"
+    except Exception:
+        pass
+
+    try:
+        diagnostics["main_content_selector_found"] = bool(page.query_selector('div[data-test="hdp-for-sale-page-content"]'))
+    except Exception:
+        pass
+
+    try:
+        diagnostics["json_ld_count"] = page.locator('script[type="application/ld+json"]').count()
+    except Exception:
+        pass
+
+    try:
+        body_text = page.locator("body").inner_text(timeout=2000) or ""
+        diagnostics["body_text_length"] = len(body_text)
+        diagnostics["body_text_preview"] = _preview_text(body_text, 280)
+        lower_body = body_text.lower()
+        for signal in ["captcha", "verify you are human", "access denied", "robot", "unusual traffic"]:
+            if signal in lower_body:
+                diagnostics["captcha_signals"].append(signal)
+    except Exception as body_error:
+        diagnostics["body_text_preview"] = f"<body_text_unavailable: {body_error}>"
+
+    return (
+        "    -> ❌ CRITICAL: Could not extract text content!\n"
+        "🛑 Text extraction diagnostics:\n"
+        f"    - ZPID: {diagnostics['zpid']}\n"
+        f"    - Listing URL: {diagnostics['listing_url']}\n"
+        f"    - Current page URL: {diagnostics['page_url']}\n"
+        f"    - Page title: {diagnostics['page_title']}\n"
+        f"    - Document readyState: {diagnostics['ready_state']}\n"
+        f"    - HTML length: {diagnostics['html_length']}\n"
+        f"    - Extracted text length: {diagnostics['extracted_text_length']}\n"
+        f"    - body.innerText length: {diagnostics['body_text_length']}\n"
+        f"    - Main content selector present (div[data-test='hdp-for-sale-page-content']): {diagnostics['main_content_selector_found']}\n"
+        f"    - JSON-LD script count: {diagnostics['json_ld_count']}\n"
+        f"    - Captcha/access signals found: {diagnostics['captcha_signals'] if diagnostics['captcha_signals'] else 'none'}\n"
+        f"    - HTML preview: {diagnostics['html_preview'] or '<empty>'}\n"
+        f"    - Body text preview: {diagnostics['body_text_preview'] or '<empty>'}"
+    )
 
 def process_listing(page, zpid: int, listing_url: str, conn: duckdb.DuckDBPyConnection) -> bool:
     """
@@ -959,9 +1178,11 @@ def process_listing(page, zpid: int, listing_url: str, conn: duckdb.DuckDBPyConn
         listing_html = page.content()
         comprehensive_text = extract_comprehensive_text_content(listing_html)
         if not comprehensive_text:
-            print("    -> ❌ CRITICAL: Could not extract text content!")
-            print("🛑 This indicates a serious problem with HTML parsing or page structure.")
-            raise Exception("CRITICAL FAILURE: No text content extracted - this must be fixed!")
+            print(build_text_extraction_diagnostics(page, zpid, listing_url, listing_html, comprehensive_text))
+            raise Exception(
+                f"CRITICAL FAILURE: No text content extracted for ZPID {zpid} at {listing_url}. "
+                "See text extraction diagnostics above."
+            )
 
         # 2. Update the properties table with fresh data and get photo count
         success, photo_count = update_properties_table(conn, zpid, listing_url, listing_html)
@@ -1010,7 +1231,7 @@ def process_listing(page, zpid: int, listing_url: str, conn: duckdb.DuckDBPyConn
         
         # Dynamic scrolling that targets the correct scrollable container
         scroll_attempts = 0
-        max_scrolls = 25  # Increased limit
+        max_scrolls = 120
         last_image_count = 0
         consecutive_no_new_images = 0
         
@@ -1079,6 +1300,26 @@ def process_listing(page, zpid: int, listing_url: str, conn: duckdb.DuckDBPyConn
                 consecutive_no_new_images = 0
                 last_image_count = current_image_count
         
+        # Force-jump to very bottom of the gallery container to catch any remaining images
+        # that scroll bursts may have missed (e.g. a few images near the end of a long gallery)
+        try:
+            page.evaluate("""
+                () => {
+                    const c = document.querySelector('#__c11n_40v5e');
+                    if (c) c.scrollTop = c.scrollHeight;
+                }
+            """)
+            time.sleep(1.0)
+            for selector in image_selectors:
+                elements = page.query_selector_all(selector)
+                for elem in elements:
+                    src = elem.get_attribute('src') or elem.get_attribute('data-src')
+                    if src and 'photos.zillowstatic.com' in src:
+                        if any(size in src for size in ['_1536', '_1024', 'cc_ft_', 'uncropped_scaled_within', 'p_f']):
+                            all_image_urls.add(src.split('?')[0])
+        except Exception:
+            pass
+
         # Final collection pass after exiting loop
         if VERBOSE_LOGGING:
             print(f"    -> Doing final image collection pass...")
@@ -1265,6 +1506,30 @@ def run_live_extraction():
         if VERBOSE_LOGGING:
             print(f"🌐 Browser UA: {BROWSER_UA}")
 
+        # Detect whether we can resume from a saved checkpoint.
+        # Only offer resume if the browser is already sitting on a Zillow page
+        # (meaning it was left open from the previous interrupted run).
+        checkpoint = load_checkpoint()
+        is_resuming = False
+        resume_page_num = 1
+        resume_listing_index = 0
+        if checkpoint:
+            try:
+                current_tab_url = page.url or ''
+            except Exception:
+                current_tab_url = ''
+            if 'zillow.com' in current_tab_url:
+                print(f"\n📂 Checkpoint found: page {checkpoint['current_page_num']}, "
+                      f"listing index {checkpoint['resume_listing_index']} "
+                      f"(saved {checkpoint['saved_at']})")
+                print(f"   Browser tab is already on Zillow: {current_tab_url[:70]}")
+                answer = input("Resume from checkpoint? (y/n): ").strip().lower()
+                if answer == 'y':
+                    is_resuming = True
+                    resume_page_num = checkpoint['current_page_num']
+                    resume_listing_index = checkpoint['resume_listing_index']
+                    print(f"▶️  Resuming at page {resume_page_num}, listing index {resume_listing_index}.")
+
         try:
             if BROWSER_MODE == 'launch_chrome':
                 print("🧑‍💻 Chrome launch+attach mode enabled.")
@@ -1277,24 +1542,35 @@ def run_live_extraction():
             print("   Sign in / solve any challenge in that window before continuing.")
             input("Press Enter when Chrome is ready for the scraper to take over...")
 
-            # Step 1: Start from Zillow homepage to avoid captcha
-            print("🌐 Navigating to Zillow homepage first...")
-            page.goto('https://www.zillow.com/', wait_until='domcontentloaded')
-            sleep_jitter(8, 0.35)
-            mouse_wander(page)
-            if not pause_for_challenge_resolution(page, "homepage load"):
-                raise Exception("Challenge unresolved on homepage load")
+            if is_resuming:
+                print("▶️  Resuming — reloading search tab to ensure fresh DOM...")
+                page.bring_to_front()
+                page.reload(wait_until='load', timeout=60000)
+                sleep_jitter(3, 0.35)
+                mouse_wander(page)
+                if not pause_for_challenge_resolution(page, "resume startup"):
+                    raise Exception("Challenge detected on resume startup")
+            else:
+                # Step 1: Start from Zillow homepage to avoid captcha
+                print("🌐 Navigating to Zillow homepage first...")
+                page.goto('https://www.zillow.com/', wait_until='domcontentloaded')
+                sleep_jitter(3, 0.35)
+                mouse_wander(page)
+                if not pause_for_challenge_resolution(page, "homepage load"):
+                    raise Exception("Challenge unresolved on homepage load")
 
-            # Step 2: Go to the search page
-            print("🔍 Loading search results page...")
-            page.goto(SEARCH_URL, wait_until='load', timeout=60000)
-            sleep_jitter(20, 0.35)
-            mouse_wander(page)
+                # Step 2: Go to the search page
+                print("🔍 Loading search results page...")
+                page.goto(SEARCH_URL, wait_until='load', timeout=60000)
+                sleep_jitter(3, 0.35)
+                mouse_wander(page)
 
-            if not pause_for_challenge_resolution(page, "search results page load"):
-                raise Exception("Challenge unresolved on search results page")
+                if not pause_for_challenge_resolution(page, "search results page load"):
+                    raise Exception("Challenge unresolved on search results page")
             
-            current_page_num = 1
+            current_page_num = resume_page_num
+            last_break_time = time.time()
+            next_break_interval = random.uniform(10 * 60, 15 * 60)  # first break in 10-15 min
             while True:
                 print(f"\n--- Scraping Page {current_page_num} ---")
                 if not pause_for_challenge_resolution(page, f"search page {current_page_num}"):
@@ -1364,13 +1640,16 @@ def run_live_extraction():
 
                 # Remove duplicates
                 listing_links_on_page = sorted(list(set(listing_links_on_page)))
-                next_page_button = page.query_selector('a[title="Next page"]')
+
+                # Slightly shuffle search results — swaps within small groups of 3 so the
+                # order is recognizably similar but not robotically top-to-bottom.
+                listing_links_on_page = slightly_shuffle(listing_links_on_page)
 
                 # Add for_review links to the TOP of the list, but only on the FIRST PAGE
+                # (prepended after shuffling so they stay at the front)
                 if current_page_num == 1:
                     for_review_links = get_for_review_links()
                     if for_review_links:
-                        # Add for_review links to the beginning of the list
                         listing_links_on_page = for_review_links + listing_links_on_page
                         print(f"📋 Added {len(for_review_links)} links from for_review table to the top of the list.")
 
@@ -1378,6 +1657,22 @@ def run_live_extraction():
 
                 # Process each listing
                 for i, link in enumerate(listing_links_on_page):
+                    # On a resumed run, skip listings we already processed on this page
+                    if is_resuming and current_page_num == resume_page_num and i < resume_listing_index:
+                        print(f"    ⏩ Skipping listing {i+1} (already processed before interruption).")
+                        continue
+
+                    # Strategic break: pause for 2-5 minutes every 10-15 minutes to mimic
+                    # a human stepping away from the screen between browsing sessions.
+                    elapsed = time.time() - last_break_time
+                    if elapsed >= next_break_interval:
+                        break_secs = random.uniform(2 * 60, 5 * 60)
+                        print(f"\n☕ Strategic break — pausing for {break_secs / 60:.1f} min to look human...")
+                        time.sleep(break_secs)
+                        last_break_time = time.time()
+                        next_break_interval = random.uniform(10 * 60, 15 * 60)
+                        print("▶️  Resuming scraping.")
+
                     zpid_match = re.search(r'/(\d+)_zpid/', link)
                     if not zpid_match:
                         print(f"    ⚠️ Could not extract ZPID from {link}. Skipping.")
@@ -1408,6 +1703,8 @@ def run_live_extraction():
                                     zpid_to_price.get(zpid)
                                 )
 
+                                # Return to search tab before next iteration
+                                page.bring_to_front()
                                 sleep_jitter(1, 0.4)
                                 continue
 
@@ -1436,16 +1733,13 @@ def run_live_extraction():
                         # Bring search page back to front after processing listing
                         page.bring_to_front()
                         
-                        # Scroll a bit on search page to simulate natural browsing
+                        # Scroll back up and dwell — the page is at the bottom from initial load.
+                        # Use JS scrollBy instead of mouse wheel to avoid zooming Zillow's map panel.
                         try:
-                            scroll_direction = random.choice([-1, 1])  # Up or down
-                            # Quick mouse wheel bursts - 2-4 ticks
-                            num_ticks = random.randint(2, 4)
-                            for _ in range(num_ticks):
-                                tick_amount = human_scroll_px() * scroll_direction
-                                page.mouse.wheel(0, tick_amount)
-                                time.sleep(random.uniform(0.01, 0.03))
-                            time.sleep(random.uniform(0.2, 0.4))
+                            scroll_px = random.randint(600, 1200)
+                            page.evaluate(f"window.scrollBy({{top: -{scroll_px}, left: 0, behavior: 'instant'}})")
+                            mouse_wander(page)
+                            human_dwell_pause(page)
                         except Exception:
                             pass
                         
@@ -1463,15 +1757,28 @@ def run_live_extraction():
 
                     sleep_jitter(2, 0.4) # Be respectful
 
-                # Navigate to the next page
+                    # Checkpoint: record that we finished this listing index
+                    save_checkpoint(current_page_num, i + 1)
+
+                # Navigate to the next page — re-query fresh to avoid stale ElementHandle
+                next_page_button = page.query_selector('a[title="Next page"]')
                 if next_page_button:
                     print("\n➡️ Clicking 'Next Page'...")
                     next_page_button.click()
                     page.wait_for_load_state('load', timeout=60000)
                     sleep_jitter(5, 0.35)
                     current_page_num += 1
+                    resume_listing_index = 0  # full page, no skip needed
+                    save_checkpoint(current_page_num, 0)
                 else:
+                    if len(listing_links_on_page) == 0:
+                        # Zero listings is almost certainly a page-load failure, not a real
+                        # end-of-results. Preserve the checkpoint so the next run can retry.
+                        print("⚠️  0 listings found on this page — likely a load failure, NOT end of results.")
+                        print("   Checkpoint preserved. Re-run the script to retry this page.")
+                        break
                     print("✅ No more pages found. All done!")
+                    clear_checkpoint()
                     break
 
         except Exception as e:
