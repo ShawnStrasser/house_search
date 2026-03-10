@@ -1513,6 +1513,7 @@ def run_live_extraction():
         is_resuming = False
         resume_page_num = 1
         resume_listing_index = 0
+        completed_successfully = False
         if checkpoint:
             try:
                 current_tab_url = page.url or ''
@@ -1779,19 +1780,22 @@ def run_live_extraction():
                         break
                     print("✅ No more pages found. All done!")
                     clear_checkpoint()
+                    completed_successfully = True
                     break
 
         except Exception as e:
             print(f"❌ An error occurred in the main process: {e}")
             print("🛑 ALL ERRORS ARE CRITICAL - CANNOT CONTINUE!")
             print("💡 Browser left open for debugging. Close manually when done.")
+            send_telegram_message("FAILURE")
             raise e
         
         finally:
             print("🛑 Closing database connection.")
             # Play an alert noise before exiting
             winsound.Beep(1000, 500)
-            send_telegram_message("🛑 live_scraper.py finished.")
+            if completed_successfully:
+                send_telegram_message("🛑 live_scraper.py finished.")
             db_conn.close()
             # Don't close browser or pages - leave them open for debugging
 
