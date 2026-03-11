@@ -164,6 +164,17 @@ def ensure_local_database_schema():
         else:
             logger.info("Local properties table already has status column. Columns: %s", sorted(columns))
 
+        # AI rankings table (populated offline by ai_ranker.py)
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ai_rankings (
+                zpid INTEGER PRIMARY KEY,
+                ai_rank INTEGER NOT NULL,
+                ranked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+
         conn.commit()
     finally:
         conn.close()
@@ -255,12 +266,14 @@ def generate_scoring_sql(weights: dict, params: dict, financing_filter: list = N
             g.rating as grocery_rating,
             g.user_ratings_total as grocery_ratings_count,
             l.latitude,
-            l.longitude
+            l.longitude,
+            ar.ai_rank
         FROM properties p
         LEFT JOIN property_features pf ON p.zpid = pf.zpid
         LEFT JOIN crime c ON p.zpid = c.zpid
         LEFT JOIN grocery g ON p.zpid = g.zpid
         LEFT JOIN location l ON p.zpid = l.zpid
+        LEFT JOIN ai_rankings ar ON p.zpid = ar.zpid
     ),
     
     normalized_scores AS (
@@ -459,7 +472,8 @@ def generate_scoring_sql(weights: dict, params: dict, financing_filter: list = N
         bf.financing_eligibility,
         bf.financing_eligibility_explanation,
         bf.latitude,
-        bf.longitude
+        bf.longitude,
+        bf.ai_rank
         
     FROM normalized_scores ns
     JOIN base_features bf ON ns.zpid = bf.zpid

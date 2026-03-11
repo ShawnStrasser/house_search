@@ -1380,8 +1380,9 @@ def process_listing(page, zpid: int, listing_url: str, conn: duckdb.DuckDBPyConn
             except Exception as e:
                 print(f"       Could not debug DOM: {e}")
             
-            print("🛑 STOPPING EXECUTION - Image collection is broken!")
-            raise Exception(f"CRITICAL FAILURE: Only found {len(all_image_urls)}/{target_image_count} images for ZPID {zpid}")
+            print(f"    -> ⚠️ CRITICAL FAILURE: Only found {len(all_image_urls)}/{target_image_count} images for ZPID {zpid} - skipping to next listing")
+            add_to_manual_inspection(conn, zpid, listing_url, f"Image collection shortage: found {len(all_image_urls)}/{target_image_count} images")
+            return False
 
         # 4. Download images into memory and prepare API payload for Gemini
         model_content = [RUBRIC_INSTRUCTIONS, f"Listing text:\n\n{comprehensive_text}"]

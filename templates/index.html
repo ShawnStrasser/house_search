@@ -12,14 +12,11 @@
         <div class="control-group">
             <label for="password">Password (for editing ratings):</label>
             <div class="control-row">
-                <input type="text" id="password" name="password" 
-                       value="{{ request.args.get('password', '') }}" 
-                       placeholder="Enter password" maxlength="4"
-                       oninput="savePassword()"
-                       onchange="updateFilters()"
-                       onkeypress="if(event.key==='Enter') updateFilters()">
+                <input type="text" id="password" name="password" value="{{ request.args.get('password', '') }}"
+                    placeholder="Enter password" maxlength="4" oninput="savePassword()" onchange="updateFilters()"
+                    onkeypress="if(event.key==='Enter') updateFilters()">
                 {% if request.args.get('password') %}
-                    <span class="error">❌ Incorrect password</span>
+                <span class="error">❌ Incorrect password</span>
                 {% endif %}
             </div>
         </div>
@@ -46,51 +43,26 @@
             </div>
         </div>
 
-        <!-- AI Ranking Toggle -->
         <div class="control-group">
             <div class="ai-ranking-container">
                 <div class="toggle-container">
                     <label class="toggle-switch">
-                        <input type="checkbox" id="aiRankingToggle" onchange="toggleAIRanking()" {% if not password_correct %}disabled{% endif %}>
+                        <input type="checkbox" id="aiRankingToggle" onchange="toggleAIRanking()" {% if not
+                            password_correct %}disabled{% endif %}>
                         <span class="toggle-slider"></span>
                     </label>
                     <div class="toggle-label">
-                        <strong>🤖 AI Ranking</strong>
+                        <strong>🤖 AI Recommendations</strong>
                         <span class="toggle-description" id="toggleDescription">
                             {% if password_correct %}
-                                Auto-update rankings based on your ratings
+                            Sort by Gemini AI recommendations
                             {% else %}
-                                Auto-update rankings (requires login)
+                            Sort by AI recommendations (requires login)
                             {% endif %}
                         </span>
                     </div>
                 </div>
                 <div id="aiRankingStatus" class="ai-ranking-status"></div>
-                
-                <!-- Aggressiveness Control (shown when AI Ranking is enabled) -->
-                <div id="aggressivenessControl" class="aggressiveness-control" style="display: none;">
-                    <div class="aggressiveness-item">
-                        <label for="aiAggressiveness">🎯 Learning Aggressiveness</label>
-                        <div class="aggressiveness-slider-container">
-                            <input type="range" id="aiAggressiveness" name="aiAggressiveness" 
-                                   min="0.1" max="0.9" step="0.1" 
-                                   value="{{ aggressiveness }}" oninput="updateAIAggressivenessLabel(this.value); triggerAutoOptimization()">
-                            <div class="aggressiveness-labels">
-                                <span class="aggressiveness-label conservative">Conservative</span>
-                                <span class="aggressiveness-label moderate">Moderate</span>
-                                <span class="aggressiveness-label aggressive">Aggressive</span>
-                            </div>
-                            <div class="aggressiveness-value" id="aiAggressivenessValue">{{ aggressiveness }} ({% if aggressiveness <= 0.3 %}Conservative{% elif aggressiveness <= 0.6 %}Moderate{% else %}Aggressive{% endif %})</div>
-                        </div>
-                        <div class="aggressiveness-description">
-                            <div class="aggressiveness-explanation">
-                                <strong>Conservative:</strong> Less risk of overfitting, may underfit to your preferences
-                                <br><strong>Moderate:</strong> Balanced approach - recommended for most users
-                                <br><strong>Aggressive:</strong> Fits closely to your ratings, higher overfitting risk
-                            </div>
-                        </div>
-                    </div>
-                </div>
             </div>
         </div>
 
@@ -102,21 +74,20 @@
                     <label>Show financing eligibility:</label>
                     <div class="checkbox-group">
                         <div class="checkbox-item">
-                            <input type="checkbox" id="filter_financing_eligible" name="financing_filter" value="eligible"
-                                   {% if 'eligible' in financing_filter %}checked{% endif %}
-                                   onchange="updateFilters()">
+                            <input type="checkbox" id="filter_financing_eligible" name="financing_filter"
+                                value="eligible" {% if 'eligible' in financing_filter %}checked{% endif %}
+                                onchange="updateFilters()">
                             <label for="filter_financing_eligible">💰 Eligible</label>
                         </div>
                         <div class="checkbox-item">
-                            <input type="checkbox" id="filter_financing_not_eligible" name="financing_filter" value="not_eligible"
-                                   {% if 'not_eligible' in financing_filter %}checked{% endif %}
-                                   onchange="updateFilters()">
+                            <input type="checkbox" id="filter_financing_not_eligible" name="financing_filter"
+                                value="not_eligible" {% if 'not_eligible' in financing_filter %}checked{% endif %}
+                                onchange="updateFilters()">
                             <label for="filter_financing_not_eligible">🚫 Not Eligible</label>
                         </div>
                         <div class="checkbox-item">
                             <input type="checkbox" id="filter_financing_unknown" name="financing_filter" value="unknown"
-                                   {% if 'unknown' in financing_filter %}checked{% endif %}
-                                   onchange="updateFilters()">
+                                {% if 'unknown' in financing_filter %}checked{% endif %} onchange="updateFilters()">
                             <label for="filter_financing_unknown">❓ Unknown</label>
                         </div>
                     </div>
@@ -125,27 +96,23 @@
                     <label>Show ratings:</label>
                     <div class="checkbox-group">
                         <div class="checkbox-item">
-                            <input type="checkbox" id="filter_yes" name="rating_filter" value="yes"
-                                   {% if 'yes' in rating_filter %}checked{% endif %}
-                                   onchange="updateFilters()">
+                            <input type="checkbox" id="filter_yes" name="rating_filter" value="yes" {% if 'yes' in
+                                rating_filter %}checked{% endif %} onchange="updateFilters()">
                             <label for="filter_yes">✅ Yes</label>
                         </div>
                         <div class="checkbox-item">
-                            <input type="checkbox" id="filter_no" name="rating_filter" value="no"
-                                   {% if 'no' in rating_filter %}checked{% endif %}
-                                   onchange="updateFilters()">
+                            <input type="checkbox" id="filter_no" name="rating_filter" value="no" {% if 'no' in
+                                rating_filter %}checked{% endif %} onchange="updateFilters()">
                             <label for="filter_no">❌ No</label>
                         </div>
                         <div class="checkbox-item">
-                            <input type="checkbox" id="filter_maybe" name="rating_filter" value="maybe"
-                                   {% if 'maybe' in rating_filter %}checked{% endif %}
-                                   onchange="updateFilters()">
+                            <input type="checkbox" id="filter_maybe" name="rating_filter" value="maybe" {% if 'maybe' in
+                                rating_filter %}checked{% endif %} onchange="updateFilters()">
                             <label for="filter_maybe">🤔 Maybe</label>
                         </div>
                         <div class="checkbox-item">
-                            <input type="checkbox" id="filter_blank" name="rating_filter" value="blank"
-                                   {% if 'blank' in rating_filter %}checked{% endif %}
-                                   onchange="updateFilters()">
+                            <input type="checkbox" id="filter_blank" name="rating_filter" value="blank" {% if 'blank' in
+                                rating_filter %}checked{% endif %} onchange="updateFilters()">
                             <label for="filter_blank">⚪ Blank</label>
                         </div>
                     </div>
@@ -154,17 +121,18 @@
                     <label>Show listing status:</label>
                     <div class="checkbox-group">
                         <div class="checkbox-item">
-                            <input type="checkbox" id="filter_status_blank" name="status_filter" value="blank"
-                                   {% if not status_filter or 'blank' in status_filter %}checked{% endif %}
-                                   onchange="updateFilters()">
+                            <input type="checkbox" id="filter_status_blank" name="status_filter" value="blank" {% if not
+                                status_filter or 'blank' in status_filter %}checked{% endif %}
+                                onchange="updateFilters()">
                             <label for="filter_status_blank">⚪ Blank</label>
                         </div>
                         {% for listing_status in available_statuses %}
                         <div class="checkbox-item">
-                            <input type="checkbox" id="filter_status_{{ loop.index }}" name="status_filter" value="{{ listing_status }}"
-                                   {% if not status_filter or listing_status in status_filter %}checked{% endif %}
-                                   onchange="updateFilters()">
-                            <label for="filter_status_{{ loop.index }}">{{ listing_status.replace('_', ' ')|title }}</label>
+                            <input type="checkbox" id="filter_status_{{ loop.index }}" name="status_filter"
+                                value="{{ listing_status }}" {% if not status_filter or listing_status in status_filter
+                                %}checked{% endif %} onchange="updateFilters()">
+                            <label for="filter_status_{{ loop.index }}">{{ listing_status.replace('_', ' ')|title
+                                }}</label>
                         </div>
                         {% endfor %}
                     </div>
@@ -176,11 +144,9 @@
         <div class="control-group">
             <label for="min_score_threshold">🎯 Minimum Score Threshold (filters blank ratings only):</label>
             <div class="slider-container">
-                <input type="range" id="min_score_threshold" name="min_score_threshold" 
-                       min="{{ score_min|round(1) }}" max="{{ score_max|round(1) }}" step="0.1" 
-                       value="{{ min_score_threshold }}" 
-                       oninput="updateScoreThresholdLabel(this.value)" 
-                       onchange="updateFilters()">
+                <input type="range" id="min_score_threshold" name="min_score_threshold" min="{{ score_min|round(1) }}"
+                    max="{{ score_max|round(1) }}" step="0.1" value="{{ min_score_threshold }}"
+                    oninput="updateScoreThresholdLabel(this.value)" onchange="updateFilters()">
                 <div class="slider-labels">
                     <span>{{ score_min|round(1) }}</span>
                     <span id="scoreThresholdValue">{{ min_score_threshold }}</span>
@@ -192,7 +158,8 @@
         <!-- Add New Property Button -->
         <div class="control-group">
             <div class="add-property-container">
-                <button type="button" onclick="showAddPropertyModal()" class="add-property-btn" {% if not password_correct %}disabled title="Login required to add properties"{% endif %}>
+                <button type="button" onclick="showAddPropertyModal()" class="add-property-btn" {% if not
+                    password_correct %}disabled title="Login required to add properties" {% endif %}>
                     ➕ Add New Property
                 </button>
                 <span class="add-property-hint">Submit a Zillow URL for review</span>
@@ -205,177 +172,201 @@
 
 <div class="table-container">
     {% if properties %}
-        <div class="table-scroll">
-            <table>
-                <thead>
-                    <tr>
-                        <th class="rating-column" title="Your rating for this property">
-                            ❓
-                        </th>
-                        <th class="info-column" title="View property details">
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr>
+                    <th class="rating-column" title="Your rating for this property">
+                        ❓
+                    </th>
+                    <th class="info-column" title="View property details">
+                        ℹ️
+                    </th>
+                    <th>Location</th>
+                    <th>Price</th>
+                    <th>🏫 School</th>
+                    <th>🚔 Crime</th>
+                    <th>🛒 Grocery</th>
+                    <th class="hide-very-small">Beds</th>
+                    <th class="hide-very-small">Baths</th>
+                    <th class="hide-mobile">Home (sqft)</th>
+                    <th class="hide-mobile">Lot (acres)</th>
+                    <th class="hide-mobile-kitchen">Kitchen</th>
+                    <th class="hide-mobile">Bath Qual</th>
+                    <th class="hide-mobile">Interior</th>
+                    <th class="hide-mobile">Privacy</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for property in properties %}
+                <tr data-ai-rank="{{ property.ai_rank if property.ai_rank is not none else 99999 }}"
+                    data-total-score="{{ property.total_score }}">
+                    <td class="rating-column">
+                        <select class="rating-select"
+                            onchange="updateRating({{ property.zpid }}, this.value, document.getElementById('password').value)"
+                            {% if not password_correct %}disabled{% endif %}>
+                            <option value="" {% if property.rating=='' %}selected{% endif %}>-</option>
+                            <option value="yes" {% if property.rating=='yes' %}selected{% endif %}>✅</option>
+                            <option value="maybe" {% if property.rating=='maybe' %}selected{% endif %}>🤔</option>
+                            <option value="no" {% if property.rating=='no' %}selected{% endif %}>❌</option>
+                        </select>
+                    </td>
+                    <td class="info-column" style="text-align: center;">
+                        <span class="info-icon" onclick="showDetails({{ property.zpid }})"
+                            style="cursor: pointer; font-size: 16px; color: #667eea;"
+                            title="Click for property details">
                             ℹ️
-                        </th>
-                        <th>Location</th>
-                        <th>Price</th>
-                        <th>🏫 School</th>
-                        <th>🚔 Crime</th>
-                        <th>🛒 Grocery</th>
-                        <th class="hide-very-small">Beds</th>
-                        <th class="hide-very-small">Baths</th>
-                        <th class="hide-mobile">Home (sqft)</th>
-                        <th class="hide-mobile">Lot (acres)</th>
-                        <th class="hide-mobile-kitchen">Kitchen</th>
-                        <th class="hide-mobile">Bath Qual</th>
-                        <th class="hide-mobile">Interior</th>
-                        <th class="hide-mobile">Privacy</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for property in properties %}
-                    <tr>
-                        <td class="rating-column">
-                            <select class="rating-select" 
-                                    onchange="updateRating({{ property.zpid }}, this.value, document.getElementById('password').value)"
-                                    {% if not password_correct %}disabled{% endif %}>
-                                <option value="" {% if property.rating == '' %}selected{% endif %}>-</option>
-                                <option value="yes" {% if property.rating == 'yes' %}selected{% endif %}>✅</option>
-                                <option value="maybe" {% if property.rating == 'maybe' %}selected{% endif %}>🤔</option>
-                                <option value="no" {% if property.rating == 'no' %}selected{% endif %}>❌</option>
-                            </select>
-                        </td>
-                        <td class="info-column" style="text-align: center;">
-                            <span class="info-icon" onclick="showDetails({{ property.zpid }})" 
-                                  style="cursor: pointer; font-size: 16px; color: #667eea;" 
-                                  title="Click for property details">
-                                ℹ️
-                            </span>
-                        </td>
-                        <td class="location-cell">
-                            <a href="{{ property.source_url }}" target="_blank" class="listing-link">
-                                {{ property.city_state or 'View Listing' }}
-                            </a>
-                        </td>
-                        <td class="price">${{ "{:,.0f}".format(property.price) }}</td>
-                        <td style="text-align: center;" title="School rating (1-10 scale)">
-                            {% if property.avg_school_rating %}
-                                <span style="color: {{ property.school_rating_color }}; font-weight: bold;">{{ "%.1f"|format(property.avg_school_rating) }}</span>
-                            {% else %}
-                                <span style="color: #999999;">-</span>
-                            {% endif %}
-                        </td>
-                        <td style="text-align: center; font-size: 18px;" title="Crime level: {{ property.crime_emoji or '❓' }}">
-                            {{ property.crime_emoji or '❓' }}
-                        </td>
-                        <td style="text-align: center;" title="Drive time to grocery store in minutes">
-                            {% if property.drive_time %}
-                                <span style="color: {{ property.drive_time_color }}; font-weight: bold;">{{ property.drive_time }}min</span>
-                            {% else %}
-                                <span style="color: #DC143C; font-size: 16px;">🚫</span>
-                            {% endif %}
-                        </td>
-                        <td class="hide-very-small">{{ property.beds or '-' }}</td>
-                        <td class="hide-very-small">{{ property.baths or '-' }}</td>
-                        <td class="hide-mobile">{{ "{:,.0f}".format(property.home_size_sqft) if property.home_size_sqft else '-' }}</td>
-                        <td class="hide-mobile">{{ "%.1f"|format(property.lot_size_acres) if property.lot_size_acres else '-' }}</td>
-                        <td class="hide-mobile-kitchen">{{ property.kitchen_quality or '-' }}</td>
-                        <td class="hide-mobile">{{ property.bathroom_quality or '-' }}</td>
-                        <td class="hide-mobile">{{ property.general_interior_quality or '-' }}</td>
-                        <td class="hide-mobile">{{ property.privacy_level or '-' }}</td>
-                    </tr>
-                    <!-- Property details row (hidden by default) -->
-                    <tr id="details-{{ property.zpid }}" class="details-row" style="display: none;">
-                        <td colspan="15" style="padding: 15px; background: #f8f9fa; border-left: 4px solid #667eea;">
-                            <div class="property-details">
-                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px;">
-                                    <div class="show-on-very-small" style="display: none;">
-                                        <h4 style="margin: 0 0 8px 0; color: #667eea;">🏠 Property Details</h4>
-                                        <p style="margin: 0; font-size: 14px;">
-                                            {{ property.beds or '?' }} beds, {{ property.baths or '?' }} baths
-                                            {% if property.home_size_sqft %}<br>{{ "{:,.0f}".format(property.home_size_sqft) }} sqft{% endif %}
-                                            {% if property.lot_size_acres %}<br>{{ "%.1f"|format(property.lot_size_acres) }} acres{% endif %}
-                                        </p>
-                                    </div>
-                                    <div>
-                                        <h4 style="margin: 0 0 8px 0; color: #667eea;">💰 Financing</h4>
-                                        <p style="margin: 0; font-size: 14px;">{{ property.financing_eligibility_explanation or 'No information available' }}</p>
-                                    </div>
-                                    {% if property.general_assessment %}
-                                    <div>
-                                        <h4 style="margin: 0 0 8px 0; color: #667eea;">🏠 General Assessment</h4>
-                                        <p style="margin: 0; font-size: 14px;">{{ property.general_assessment }}</p>
-                                    </div>
-                                    {% endif %}
-                                    <div>
-                                        <h4 style="margin: 0 0 8px 0; color: #667eea;">✨ Positive Features</h4>
-                                        <p style="margin: 0; font-size: 14px;">{{ property.positive_features_list or 'No special features noted' }}</p>
-                                    </div>
-                                    {% if property.negative_features_list %}
-                                    <div>
-                                        <h4 style="margin: 0 0 8px 0; color: #667eea;">⚠️ Negative Features</h4>
-                                        <p style="margin: 0; font-size: 14px;">{{ property.negative_features_list }}</p>
-                                    </div>
-                                    {% endif %}
-                                    <div>
-                                        <h4 style="margin: 0 0 8px 0; color: #667eea;">🛒 Grocery Store</h4>
-                                        <p style="margin: 0; font-size: 14px;">
-                                            {% if property.grocery_name %}
-                                                {{ property.grocery_name }} - {{ property.drive_time or '?' }} min drive
-                                                {% if property.grocery_rating %}
-                                                    <br><small>({{ property.grocery_rating }}★ rating{% if property.grocery_ratings_count %} from {{ property.grocery_ratings_count }} reviews{% endif %})</small>
-                                                {% endif %}
-                                            {% else %}
-                                                <span style="color: #DC143C;">🚫 No grocery information available</span>
-                                            {% endif %}
-                                        </p>
-                                    </div>
-                                    <div>
-                                        <h4 style="margin: 0 0 8px 0; color: #667eea;">📍 Full Address</h4>
-                                        <p style="margin: 0; font-size: 14px;">{{ property.full_address or 'Address not available' }}</p>
-                                    </div>
-                                    {% if password_correct %}
-                                    <div style="grid-column: 1 / -1;">
-                                        <h4 style="margin: 0 0 8px 0; color: #667eea;">📝 Personal Notes</h4>
-                                        <textarea id="note-{{ property.zpid }}" 
-                                                  placeholder="Add your personal notes about this property..."
-                                                  style="width: 100%; min-height: 80px; padding: 8px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px; font-family: inherit; resize: vertical; box-sizing: border-box;"
-                                                  onchange="markNoteDirty({{ property.zpid }})"
-                                                  oninput="markNoteDirty({{ property.zpid }})">{{ property.note or '' }}</textarea>
-                                        <div id="note-status-{{ property.zpid }}" style="margin-top: 5px; font-size: 12px; color: #666; min-height: 16px;">
-                                            Notes will be saved automatically when you close this section.
-                                        </div>
-                                    </div>
-                                    {% endif %}
+                        </span>
+                    </td>
+                    <td class="location-cell">
+                        <a href="{{ property.source_url }}" target="_blank" class="listing-link">
+                            {{ property.city_state or 'View Listing' }}
+                        </a>
+                    </td>
+                    <td class="price">${{ "{:,.0f}".format(property.price) }}</td>
+                    <td style="text-align: center;" title="School rating (1-10 scale)">
+                        {% if property.avg_school_rating %}
+                        <span style="color: {{ property.school_rating_color }}; font-weight: bold;">{{
+                            "%.1f"|format(property.avg_school_rating) }}</span>
+                        {% else %}
+                        <span style="color: #999999;">-</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align: center; font-size: 18px;"
+                        title="Crime level: {{ property.crime_emoji or '❓' }}">
+                        {{ property.crime_emoji or '❓' }}
+                    </td>
+                    <td style="text-align: center;" title="Drive time to grocery store in minutes">
+                        {% if property.drive_time %}
+                        <span style="color: {{ property.drive_time_color }}; font-weight: bold;">{{ property.drive_time
+                            }}min</span>
+                        {% else %}
+                        <span style="color: #DC143C; font-size: 16px;">🚫</span>
+                        {% endif %}
+                    </td>
+                    <td class="hide-very-small">{{ property.beds or '-' }}</td>
+                    <td class="hide-very-small">{{ property.baths or '-' }}</td>
+                    <td class="hide-mobile">{{ "{:,.0f}".format(property.home_size_sqft) if property.home_size_sqft else
+                        '-' }}</td>
+                    <td class="hide-mobile">{{ "%.1f"|format(property.lot_size_acres) if property.lot_size_acres else
+                        '-' }}</td>
+                    <td class="hide-mobile-kitchen">{{ property.kitchen_quality or '-' }}</td>
+                    <td class="hide-mobile">{{ property.bathroom_quality or '-' }}</td>
+                    <td class="hide-mobile">{{ property.general_interior_quality or '-' }}</td>
+                    <td class="hide-mobile">{{ property.privacy_level or '-' }}</td>
+                </tr>
+                <!-- Property details row (hidden by default) -->
+                <tr id="details-{{ property.zpid }}" class="details-row" style="display: none;">
+                    <td colspan="15" style="padding: 15px; background: #f8f9fa; border-left: 4px solid #667eea;">
+                        <div class="property-details">
+                            <div
+                                style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px;">
+                                <div class="show-on-very-small" style="display: none;">
+                                    <h4 style="margin: 0 0 8px 0; color: #667eea;">🏠 Property Details</h4>
+                                    <p style="margin: 0; font-size: 14px;">
+                                        {{ property.beds or '?' }} beds, {{ property.baths or '?' }} baths
+                                        {% if property.home_size_sqft %}<br>{{ "{:,.0f}".format(property.home_size_sqft)
+                                        }} sqft{% endif %}
+                                        {% if property.lot_size_acres %}<br>{{ "%.1f"|format(property.lot_size_acres) }}
+                                        acres{% endif %}
+                                    </p>
                                 </div>
-                                <div style="margin-top: 10px; text-align: right;">
-                                    <button onclick="showDetails({{ property.zpid }})" 
-                                            style="background: #667eea; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">
-                                        Close
-                                    </button>
+                                <div>
+                                    <h4 style="margin: 0 0 8px 0; color: #667eea;">💰 Financing</h4>
+                                    <p style="margin: 0; font-size: 14px;">{{ property.financing_eligibility_explanation
+                                        or 'No information available' }}</p>
                                 </div>
+                                {% if property.general_assessment %}
+                                <div>
+                                    <h4 style="margin: 0 0 8px 0; color: #667eea;">🏠 General Assessment</h4>
+                                    <p style="margin: 0; font-size: 14px;">{{ property.general_assessment }}</p>
+                                </div>
+                                {% endif %}
+                                <div>
+                                    <h4 style="margin: 0 0 8px 0; color: #667eea;">✨ Positive Features</h4>
+                                    <p style="margin: 0; font-size: 14px;">{{ property.positive_features_list or 'No
+                                        special features noted' }}</p>
+                                </div>
+                                {% if property.negative_features_list %}
+                                <div>
+                                    <h4 style="margin: 0 0 8px 0; color: #667eea;">⚠️ Negative Features</h4>
+                                    <p style="margin: 0; font-size: 14px;">{{ property.negative_features_list }}</p>
+                                </div>
+                                {% endif %}
+                                <div>
+                                    <h4 style="margin: 0 0 8px 0; color: #667eea;">🛒 Grocery Store</h4>
+                                    <p style="margin: 0; font-size: 14px;">
+                                        {% if property.grocery_name %}
+                                        {{ property.grocery_name }} - {{ property.drive_time or '?' }} min drive
+                                        {% if property.grocery_rating %}
+                                        <br><small>({{ property.grocery_rating }}★ rating{% if
+                                            property.grocery_ratings_count %} from {{ property.grocery_ratings_count }}
+                                            reviews{% endif %})</small>
+                                        {% endif %}
+                                        {% else %}
+                                        <span style="color: #DC143C;">🚫 No grocery information available</span>
+                                        {% endif %}
+                                    </p>
+                                </div>
+                                <div>
+                                    <h4 style="margin: 0 0 8px 0; color: #667eea;">📍 Full Address</h4>
+                                    <p style="margin: 0; font-size: 14px;">{{ property.full_address or 'Address not
+                                        available' }}</p>
+                                </div>
+                                {% if password_correct %}
+                                <div style="grid-column: 1 / -1;">
+                                    <h4 style="margin: 0 0 8px 0; color: #667eea;">📝 Personal Notes</h4>
+                                    <textarea id="note-{{ property.zpid }}"
+                                        placeholder="Add your personal notes about this property..."
+                                        style="width: 100%; min-height: 80px; padding: 8px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px; font-family: inherit; resize: vertical; box-sizing: border-box;"
+                                        onchange="markNoteDirty({{ property.zpid }})"
+                                        oninput="markNoteDirty({{ property.zpid }})">{{ property.note or '' }}</textarea>
+                                    <div id="note-status-{{ property.zpid }}"
+                                        style="margin-top: 5px; font-size: 12px; color: #666; min-height: 16px;">
+                                        Notes will be saved automatically when you close this section.
+                                    </div>
+                                </div>
+                                {% endif %}
                             </div>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        <div style="padding: 15px; background: #f8f9fa; font-size: 14px; color: #666; border-top: 1px solid #dee2e6;">
-            📱 <strong>Mobile tip:</strong> Swipe left/right to see more columns. Click ℹ️ for property details.
-            <br>
-            🚔 <strong>Crime icons:</strong> 😇 Safest → 😊 Safe → 😐 Average → 😰 Risky → 😱 Most Dangerous | ❓ No Data
-            <br>
-            🏫 <strong>School ratings:</strong> <span style="color: #006400; font-weight: bold;">8.5-10</span> → <span style="color: #228B22; font-weight: bold;">7.0-8.4</span> → <span style="color: #000000; font-weight: bold;">5.5-6.9</span> → <span style="color: #FF8C00; font-weight: bold;">4.0-5.4</span> → <span style="color: #DC143C; font-weight: bold;">1.0-3.9</span> | <span style="color: #999999;">-</span> No Data
-            <br>
-            🛒 <strong>Grocery drive time:</strong> <span style="color: #006400; font-weight: bold;">&lt;5min</span> → <span style="color: #228B22; font-weight: bold;">&lt;10min</span> → <span style="color: #FFD700; font-weight: bold;">&lt;20min</span> → <span style="color: #FF8C00; font-weight: bold;">&lt;40min</span> → <span style="color: #DC143C; font-weight: bold;">&gt;40min</span> | <span style="color: #DC143C;">🚫</span> No Data
-            <br>
-            Showing {{ properties|length }} properties. 
-            {% if not password_correct %}Enter password above to edit ratings.{% endif %}
-        </div>
+                            <div style="margin-top: 10px; text-align: right;">
+                                <button onclick="showDetails({{ property.zpid }})"
+                                    style="background: #667eea; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">
+                                    Close
+                                </button>
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div style="padding: 15px; background: #f8f9fa; font-size: 14px; color: #666; border-top: 1px solid #dee2e6;">
+        📱 <strong>Mobile tip:</strong> Swipe left/right to see more columns. Click ℹ️ for property details.
+        <br>
+        🚔 <strong>Crime icons:</strong> 😇 Safest → 😊 Safe → 😐 Average → 😰 Risky → 😱 Most Dangerous | ❓ No Data
+        <br>
+        🏫 <strong>School ratings:</strong> <span style="color: #006400; font-weight: bold;">8.5-10</span> → <span
+            style="color: #228B22; font-weight: bold;">7.0-8.4</span> → <span
+            style="color: #000000; font-weight: bold;">5.5-6.9</span> → <span
+            style="color: #FF8C00; font-weight: bold;">4.0-5.4</span> → <span
+            style="color: #DC143C; font-weight: bold;">1.0-3.9</span> | <span style="color: #999999;">-</span> No Data
+        <br>
+        🛒 <strong>Grocery drive time:</strong> <span style="color: #006400; font-weight: bold;">&lt;5min</span> → <span
+            style="color: #228B22; font-weight: bold;">&lt;10min</span> → <span
+            style="color: #FFD700; font-weight: bold;">&lt;20min</span> → <span
+            style="color: #FF8C00; font-weight: bold;">&lt;40min</span> → <span
+            style="color: #DC143C; font-weight: bold;">&gt;40min</span> | <span style="color: #DC143C;">🚫</span> No
+        Data
+        <br>
+        Showing {{ properties|length }} properties.
+        {% if not password_correct %}Enter password above to edit ratings.{% endif %}
+    </div>
     {% else %}
-        <div class="no-data">
-            <h3>No properties found</h3>
-            <p>Try adjusting your rating filters or check your database connection.</p>
-        </div>
+    <div class="no-data">
+        <h3>No properties found</h3>
+        <p>Try adjusting your rating filters or check your database connection.</p>
+    </div>
     {% endif %}
 </div>
 
@@ -392,787 +383,661 @@
             <div id="urlStatus" style="margin-top: 8px; font-size: 12px; min-height: 16px;"></div>
         </div>
         <div class="modal-footer">
-            <button type="button" class="modal-btn modal-btn-secondary" onclick="closeAddPropertyModal()">Cancel</button>
-            <button type="button" class="modal-btn modal-btn-primary" onclick="submitProperty()" id="submitBtn">Add Property</button>
+            <button type="button" class="modal-btn modal-btn-secondary"
+                onclick="closeAddPropertyModal()">Cancel</button>
+            <button type="button" class="modal-btn modal-btn-primary" onclick="submitProperty()" id="submitBtn">Add
+                Property</button>
         </div>
     </div>
 </div>
 
 <style>
-/* Navigation links */
-.nav-links-container {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 15px;
-    flex-wrap: wrap;
-}
-
-.nav-link {
-    display: inline-block;
-    padding: 10px 20px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    text-decoration: none;
-    border-radius: 6px;
-    font-weight: 500;
-    transition: all 0.2s ease;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.nav-link:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-    color: white;
-    text-decoration: none;
-}
-
-.nav-separator {
-    font-size: 18px;
-    color: #999;
-    font-weight: bold;
-}
-
-
-.ai-ranking-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 10px;
-}
-
-.toggle-container {
-    display: flex;
-    align-items: center;
-    gap: 15px;
-}
-
-.toggle-switch {
-    position: relative;
-    display: inline-block;
-    width: 60px;
-    height: 34px;
-}
-
-.toggle-switch input {
-    opacity: 0;
-    width: 0;
-    height: 0;
-}
-
-.toggle-slider {
-    position: absolute;
-    cursor: pointer;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: #ccc;
-    transition: 0.3s;
-    border-radius: 34px;
-}
-
-.toggle-slider:before {
-    position: absolute;
-    content: "";
-    height: 26px;
-    width: 26px;
-    left: 4px;
-    bottom: 4px;
-    background-color: white;
-    transition: 0.3s;
-    border-radius: 50%;
-}
-
-input:checked + .toggle-slider {
-    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-}
-
-input:checked + .toggle-slider:before {
-    transform: translateX(26px);
-}
-
-input:disabled + .toggle-slider {
-    background-color: #e0e0e0;
-    cursor: not-allowed;
-}
-
-input:disabled + .toggle-slider:before {
-    background-color: #f5f5f5;
-}
-
-input:disabled:checked + .toggle-slider {
-    background-color: #c8e6c9;
-}
-
-.toggle-label {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-
-.toggle-description {
-    font-size: 12px;
-    color: #666;
-    font-style: italic;
-    max-width: 250px;
-}
-
-.ai-ranking-status {
-    font-size: 12px;
-    font-weight: 500;
-    text-align: center;
-    min-height: 16px;
-}
-
-.add-property-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 5px;
-}
-
-.add-property-btn {
-    display: inline-block;
-    padding: 10px 20px;
-    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-    color: white;
-    border: none;
-    border-radius: 6px;
-    font-weight: 500;
-    font-size: 14px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.add-property-btn:hover:not(:disabled) {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-}
-
-.add-property-btn:disabled {
-    background: #e0e0e0;
-    color: #999;
-    cursor: not-allowed;
-    transform: none;
-    box-shadow: none;
-}
-
-.add-property-hint {
-    font-size: 12px;
-    color: #666;
-    font-style: italic;
-    text-align: center;
-}
-
-/* Aggressiveness Control Styles for Index Page */
-.aggressiveness-control {
-    margin-top: 15px;
-    max-width: 500px;
-    margin-left: auto;
-    margin-right: auto;
-}
-
-.aggressiveness-item {
-    padding: 15px;
-    background: #f7fafc;
-    border-radius: 8px;
-    border: 1px solid #e2e8f0;
-}
-
-.aggressiveness-item label {
-    display: block;
-    margin-bottom: 12px;
-    font-weight: 600;
-    color: #2d3748;
-    font-size: 14px;
-}
-
-.aggressiveness-slider-container {
-    margin-bottom: 12px;
-}
-
-.aggressiveness-slider-container input[type="range"] {
-    width: 100%;
-    height: 6px;
-    border-radius: 3px;
-    background: linear-gradient(to right, #e53e3e 0%, #f6ad55 50%, #38a169 100%);
-    outline: none;
-    -webkit-appearance: none;
-    margin-bottom: 8px;
-}
-
-.aggressiveness-slider-container input[type="range"]::-webkit-slider-thumb {
-    appearance: none;
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    background: #667eea;
-    cursor: pointer;
-    border: 2px solid white;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-}
-
-.aggressiveness-slider-container input[type="range"]::-moz-range-thumb {
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    background: #667eea;
-    cursor: pointer;
-    border: 2px solid white;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-}
-
-.aggressiveness-labels {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 6px;
-}
-
-.aggressiveness-label {
-    font-size: 11px;
-    font-weight: 500;
-    color: #666;
-}
-
-.aggressiveness-label.conservative {
-    color: #e53e3e;
-}
-
-.aggressiveness-label.moderate {
-    color: #f6ad55;
-}
-
-.aggressiveness-label.aggressive {
-    color: #38a169;
-}
-
-.aggressiveness-value {
-    text-align: center;
-    font-weight: 600;
-    color: #667eea;
-    font-size: 13px;
-    margin-bottom: 10px;
-}
-
-.aggressiveness-description {
-    background: #f0f8ff;
-    border-radius: 4px;
-    padding: 8px;
-    border-left: 3px solid #667eea;
-}
-
-.aggressiveness-explanation {
-    font-size: 11px;
-    color: #4a5568;
-    line-height: 1.4;
-}
-
-/* Modal styles */
-.modal {
-    display: none;
-    position: fixed;
-    z-index: 1000;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0,0,0,0.5);
-}
-
-.modal-content {
-    background-color: #fefefe;
-    margin: 10% auto;
-    padding: 20px;
-    border: none;
-    border-radius: 8px;
-    width: 90%;
-    max-width: 500px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-}
-
-.modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid #eee;
-}
-
-.modal-header h3 {
-    margin: 0;
-    color: #333;
-}
-
-.close {
-    color: #aaa;
-    font-size: 28px;
-    font-weight: bold;
-    cursor: pointer;
-    line-height: 1;
-}
-
-.close:hover,
-.close:focus {
-    color: #000;
-}
-
-.modal-body {
-    margin-bottom: 20px;
-}
-
-.modal-body label {
-    display: block;
-    margin-bottom: 8px;
-    font-weight: 500;
-    color: #333;
-}
-
-.modal-body input[type="url"] {
-    width: 100%;
-    padding: 10px;
-    border: 2px solid #ddd;
-    border-radius: 4px;
-    font-size: 14px;
-    box-sizing: border-box;
-}
-
-.modal-body input[type="url"]:focus {
-    outline: none;
-    border-color: #667eea;
-}
-
-.modal-footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-}
-
-.modal-btn {
-    padding: 8px 16px;
-    border: none;
-    border-radius: 4px;
-    font-size: 14px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.modal-btn-primary {
-    background: #667eea;
-    color: white;
-}
-
-.modal-btn-primary:hover {
-    background: #5a6fd8;
-}
-
-.modal-btn-secondary {
-    background: #6c757d;
-    color: white;
-}
-
-.modal-btn-secondary:hover {
-    background: #5a6268;
-}
-
-.modal-btn:disabled {
-    background: #e0e0e0;
-    color: #999;
-    cursor: not-allowed;
-}
-
-@media (max-width: 768px) {
+    /* Navigation links */
     .nav-links-container {
-        flex-direction: column;
-        gap: 10px;
-    }
-    
-    .nav-link {
-        text-align: center;
-        padding: 12px 15px;
-        width: 100%;
-        max-width: 200px;
-    }
-    
-    .nav-separator {
-        display: none;
-    }
-    
-    .toggle-container {
-        flex-direction: column;
-        gap: 10px;
+        display: flex;
+        justify-content: center;
         align-items: center;
+        gap: 15px;
+        flex-wrap: wrap;
     }
-    
+
+    .nav-link {
+        display: inline-block;
+        padding: 10px 20px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        text-decoration: none;
+        border-radius: 6px;
+        font-weight: 500;
+        transition: all 0.2s ease;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .nav-link:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        color: white;
+        text-decoration: none;
+    }
+
+    .nav-separator {
+        font-size: 18px;
+        color: #999;
+        font-weight: bold;
+    }
+
+
+    .ai-ranking-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .toggle-container {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+    }
+
+    .toggle-switch {
+        position: relative;
+        display: inline-block;
+        width: 60px;
+        height: 34px;
+    }
+
+    .toggle-switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+
+    .toggle-slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #ccc;
+        transition: 0.3s;
+        border-radius: 34px;
+    }
+
+    .toggle-slider:before {
+        position: absolute;
+        content: "";
+        height: 26px;
+        width: 26px;
+        left: 4px;
+        bottom: 4px;
+        background-color: white;
+        transition: 0.3s;
+        border-radius: 50%;
+    }
+
+    input:checked+.toggle-slider {
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    }
+
+    input:checked+.toggle-slider:before {
+        transform: translateX(26px);
+    }
+
+    input:disabled+.toggle-slider {
+        background-color: #e0e0e0;
+        cursor: not-allowed;
+    }
+
+    input:disabled+.toggle-slider:before {
+        background-color: #f5f5f5;
+    }
+
+    input:disabled:checked+.toggle-slider {
+        background-color: #c8e6c9;
+    }
+
     .toggle-label {
-        text-align: center;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
     }
-    
+
     .toggle-description {
-        max-width: 300px;
+        font-size: 12px;
+        color: #666;
+        font-style: italic;
+        max-width: 250px;
     }
-    
-    .add-property-container {
-        align-items: stretch;
-    }
-    
-    .add-property-btn {
+
+    .ai-ranking-status {
+        font-size: 12px;
+        font-weight: 500;
         text-align: center;
-        padding: 12px 15px;
+        min-height: 16px;
     }
-    
+
+    .add-property-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 5px;
+    }
+
+    .add-property-btn {
+        display: inline-block;
+        padding: 10px 20px;
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-weight: 500;
+        font-size: 14px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .add-property-btn:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    .add-property-btn:disabled {
+        background: #e0e0e0;
+        color: #999;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+    }
+
+    .add-property-hint {
+        font-size: 12px;
+        color: #666;
+        font-style: italic;
+        text-align: center;
+    }
+
+    /* Aggressiveness Control Styles for Index Page */
+    .aggressiveness-control {
+        margin-top: 15px;
+        max-width: 500px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    .aggressiveness-item {
+        padding: 15px;
+        background: #f7fafc;
+        border-radius: 8px;
+        border: 1px solid #e2e8f0;
+    }
+
+    .aggressiveness-item label {
+        display: block;
+        margin-bottom: 12px;
+        font-weight: 600;
+        color: #2d3748;
+        font-size: 14px;
+    }
+
+    .aggressiveness-slider-container {
+        margin-bottom: 12px;
+    }
+
+    .aggressiveness-slider-container input[type="range"] {
+        width: 100%;
+        height: 6px;
+        border-radius: 3px;
+        background: linear-gradient(to right, #e53e3e 0%, #f6ad55 50%, #38a169 100%);
+        outline: none;
+        -webkit-appearance: none;
+        margin-bottom: 8px;
+    }
+
+    .aggressiveness-slider-container input[type="range"]::-webkit-slider-thumb {
+        appearance: none;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: #667eea;
+        cursor: pointer;
+        border: 2px solid white;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    .aggressiveness-slider-container input[type="range"]::-moz-range-thumb {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: #667eea;
+        cursor: pointer;
+        border: 2px solid white;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    .aggressiveness-labels {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 6px;
+    }
+
+    .aggressiveness-label {
+        font-size: 11px;
+        font-weight: 500;
+        color: #666;
+    }
+
+    .aggressiveness-label.conservative {
+        color: #e53e3e;
+    }
+
+    .aggressiveness-label.moderate {
+        color: #f6ad55;
+    }
+
+    .aggressiveness-label.aggressive {
+        color: #38a169;
+    }
+
+    .aggressiveness-value {
+        text-align: center;
+        font-weight: 600;
+        color: #667eea;
+        font-size: 13px;
+        margin-bottom: 10px;
+    }
+
+    .aggressiveness-description {
+        background: #f0f8ff;
+        border-radius: 4px;
+        padding: 8px;
+        border-left: 3px solid #667eea;
+    }
+
+    .aggressiveness-explanation {
+        font-size: 11px;
+        color: #4a5568;
+        line-height: 1.4;
+    }
+
+    /* Modal styles */
+    .modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+    }
+
     .modal-content {
-        margin: 5% auto;
-        width: 95%;
+        background-color: #fefefe;
+        margin: 10% auto;
+        padding: 20px;
+        border: none;
+        border-radius: 8px;
+        width: 90%;
+        max-width: 500px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
     }
-}
+
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #eee;
+    }
+
+    .modal-header h3 {
+        margin: 0;
+        color: #333;
+    }
+
+    .close {
+        color: #aaa;
+        font-size: 28px;
+        font-weight: bold;
+        cursor: pointer;
+        line-height: 1;
+    }
+
+    .close:hover,
+    .close:focus {
+        color: #000;
+    }
+
+    .modal-body {
+        margin-bottom: 20px;
+    }
+
+    .modal-body label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 500;
+        color: #333;
+    }
+
+    .modal-body input[type="url"] {
+        width: 100%;
+        padding: 10px;
+        border: 2px solid #ddd;
+        border-radius: 4px;
+        font-size: 14px;
+        box-sizing: border-box;
+    }
+
+    .modal-body input[type="url"]:focus {
+        outline: none;
+        border-color: #667eea;
+    }
+
+    .modal-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+    }
+
+    .modal-btn {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 4px;
+        font-size: 14px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .modal-btn-primary {
+        background: #667eea;
+        color: white;
+    }
+
+    .modal-btn-primary:hover {
+        background: #5a6fd8;
+    }
+
+    .modal-btn-secondary {
+        background: #6c757d;
+        color: white;
+    }
+
+    .modal-btn-secondary:hover {
+        background: #5a6268;
+    }
+
+    .modal-btn:disabled {
+        background: #e0e0e0;
+        color: #999;
+        cursor: not-allowed;
+    }
+
+    @media (max-width: 768px) {
+        .nav-links-container {
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .nav-link {
+            text-align: center;
+            padding: 12px 15px;
+            width: 100%;
+            max-width: 200px;
+        }
+
+        .nav-separator {
+            display: none;
+        }
+
+        .toggle-container {
+            flex-direction: column;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .toggle-label {
+            text-align: center;
+        }
+
+        .toggle-description {
+            max-width: 300px;
+        }
+
+        .add-property-container {
+            align-items: stretch;
+        }
+
+        .add-property-btn {
+            text-align: center;
+            padding: 12px 15px;
+        }
+
+        .modal-content {
+            margin: 5% auto;
+            width: 95%;
+        }
+    }
 </style>
 
 <script>
-// AI Ranking state management
-let aiRankingEnabled = false; // Default to OFF
-let isOptimizing = false;
-let optimizationTimeout = null; // For debouncing slider changes
+    // AI Recommendations state management
+    let aiRankingEnabled = false; // Default to OFF
 
-function toggleAIRanking() {
-    const toggle = document.getElementById('aiRankingToggle');
-    const description = document.getElementById('toggleDescription');
-    const status = document.getElementById('aiRankingStatus');
-    const aggressivenessControl = document.getElementById('aggressivenessControl');
-    
-    // Don't change anything if disabled (non-authenticated users)
-    if (toggle.disabled) {
-        return;
-    }
-    
-    const wasEnabled = aiRankingEnabled;
-    aiRankingEnabled = toggle.checked;
-    
-    // Update UI
-    if (aiRankingEnabled) {
-        description.textContent = 'Rankings update automatically based on your ratings';
-        status.textContent = '';
-        aggressivenessControl.style.display = 'block';
-        
-        // If we just turned ON AI ranking, trigger optimization immediately
-        if (!wasEnabled && !isOptimizing) {
-            status.textContent = '🚀 AI Ranking activated! Optimizing...';
-            status.style.color = '#667eea';
-            triggerAutoOptimization();
+    function toggleAIRanking() {
+        const toggle = document.getElementById('aiRankingToggle');
+        const description = document.getElementById('toggleDescription');
+        const status = document.getElementById('aiRankingStatus');
+
+        // Don't change anything if disabled (non-authenticated users)
+        if (toggle.disabled) {
+            return;
         }
-    } else {
-        description.textContent = 'Auto-update rankings based on your ratings';
-        status.textContent = '';
-        aggressivenessControl.style.display = 'none';
-    }
-    
-    // Save preference
-    localStorage.setItem('aiRankingEnabled', aiRankingEnabled.toString());
-}
 
-function updateAIAggressivenessLabel(value) {
-    const valueElement = document.getElementById('aiAggressivenessValue');
-    const numValue = parseFloat(value);
-    
-    let label = '';
-    if (numValue <= 0.3) {
-        label = 'Conservative';
-    } else if (numValue <= 0.6) {
-        label = 'Moderate';
-    } else {
-        label = 'Aggressive';
-    }
-    
-    valueElement.textContent = `${value} (${label})`;
-}
+        aiRankingEnabled = toggle.checked;
 
-function initializeAIRanking() {
-    const toggle = document.getElementById('aiRankingToggle');
-    if (!toggle) return;
-    
-    // For non-authenticated users, keep toggle disabled and unchecked (default OFF)
-    if (toggle.disabled) {
-        aiRankingEnabled = false; // Default state OFF
-        toggle.checked = false;
-        return;
-    }
-    
-    // Load saved preference for authenticated users (default to OFF if no preference)
-    const saved = localStorage.getItem('aiRankingEnabled');
-    if (saved !== null) {
-        aiRankingEnabled = saved === 'true';
-    } else {
-        aiRankingEnabled = false; // Default to OFF
-    }
-    
-    toggle.checked = aiRankingEnabled;
-    
-    // Update UI based on current state (without triggering optimization)
-    const description = document.getElementById('toggleDescription');
-    const aggressivenessControl = document.getElementById('aggressivenessControl');
-    
-    if (aiRankingEnabled) {
-        description.textContent = 'Rankings update automatically based on your ratings';
-        aggressivenessControl.style.display = 'block';
-    } else {
-        description.textContent = 'Auto-update rankings based on your ratings';
-        aggressivenessControl.style.display = 'none';
-    }
-}
+        // Sort the table
+        sortTableByCurrentMode();
 
-function goToMap() {
-    // Build URL with current parameters
-    const currentParams = new URLSearchParams(window.location.search);
-    const params = new URLSearchParams();
-    
-    // Add all current parameters (excluding weight parameters since map doesn't use scoring)
-    for (const [key, value] of currentParams.entries()) {
-        if (!key.startsWith('weight_') && key !== 'optimizer_aggressiveness') {
-            params.append(key, value);
-        }
-    }
-    
-    // Navigate to map page with parameters
-    window.location.href = '/map?' + params.toString();
-}
+        // Update UI
+        if (aiRankingEnabled) {
+            description.textContent = 'Sorted by Gemini AI recommendations';
 
-function goToSettings() {
-    // Build URL with current parameters (weights, filters, password)
-    const currentParams = new URLSearchParams(window.location.search);
-    const settingsParams = new URLSearchParams();
-    
-    // Transfer password if it exists
-    const passwordValue = document.getElementById('password').value;
-    if (passwordValue) {
-        settingsParams.append('password', passwordValue);
-    }
-    
-    // Transfer ALL current parameters to settings URL (not just weights)
-    for (const [key, value] of currentParams.entries()) {
-        settingsParams.append(key, value);
-    }
-    
-    // Navigate to settings
-    const url = '/settings' + (settingsParams.toString() ? '?' + settingsParams.toString() : '');
-    window.location.href = url;
-}
-
-function triggerAutoOptimization() {
-    if (isOptimizing) return; // Prevent multiple simultaneous optimizations
-    
-    // Clear any existing timeout
-    if (optimizationTimeout) {
-        clearTimeout(optimizationTimeout);
-    }
-    
-    // Debounce the optimization call by 500ms
-    optimizationTimeout = setTimeout(() => {
-        performOptimization();
-    }, 500);
-}
-
-function performOptimization() {
-    if (isOptimizing) return; // Prevent multiple simultaneous optimizations
-    
-    const passwordInput = document.getElementById('password');
-    const password = passwordInput.value;
-    
-    if (!password) return; // Can't optimize without password
-    
-    isOptimizing = true;
-    const statusDiv = document.getElementById('aiRankingStatus');
-    
-    // Show subtle loading indicator
-    statusDiv.textContent = '🔄 Updating rankings...';
-    statusDiv.style.color = '#667eea';
-    
-    // Add subtle loading effect to table
-    const tableContainer = document.querySelector('.table-container');
-    if (tableContainer) {
-        tableContainer.style.opacity = '0.8';
-        tableContainer.style.transition = 'opacity 0.3s ease';
-    }
-    
-    // Prepare form data
-    const formData = new FormData();
-    formData.append('password', password);
-    
-    // Add current weight parameters from URL
-    const currentParams = new URLSearchParams(window.location.search);
-    for (const [key, value] of currentParams.entries()) {
-        if (key.startsWith('weight_')) {
-            formData.append(key, value);
-        }
-    }
-    
-    // Add financing filter
-    const financingCheckboxes = document.querySelectorAll('input[name="financing_filter"]:checked');
-    financingCheckboxes.forEach(checkbox => {
-        formData.append('financing_filter', checkbox.value);
-    });
-    
-    // Add current rating filters
-    const ratingCheckboxes = document.querySelectorAll('input[name="rating_filter"]:checked');
-    ratingCheckboxes.forEach(checkbox => {
-        formData.append('rating_filter', checkbox.value);
-    });
-
-    // Add current status filters
-    const statusCheckboxes = document.querySelectorAll('input[name="status_filter"]:checked');
-    statusCheckboxes.forEach(checkbox => {
-        formData.append('status_filter', checkbox.value);
-    });
-    
-    // Add aggressiveness parameter
-    const aggressivenessSlider = document.getElementById('aiAggressiveness');
-    if (aggressivenessSlider) {
-        formData.append('optimizer_aggressiveness', aggressivenessSlider.value);
-    }
-    
-    // Add minimum score threshold
-    const scoreThresholdSlider = document.getElementById('min_score_threshold');
-    if (scoreThresholdSlider) {
-        formData.append('min_score_threshold', scoreThresholdSlider.value);
-    }
-    
-    // Send optimization request
-    fetch('/optimize_weights', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        isOptimizing = false;
-        
-        // Restore table opacity
-        if (tableContainer) {
-            tableContainer.style.opacity = '1';
-        }
-        
-        if (data.success) {
-            statusDiv.textContent = '✅ Rankings updated!';
-            statusDiv.style.color = '#28a745';
-            
-            // Update the URL with new weights and aggressiveness (silently, no reload)
-            const currentUrl = new URL(window.location);
-            const params = new URLSearchParams(data.weight_url_params);
-            for (const [key, value] of params.entries()) {
-                currentUrl.searchParams.set(key, value);
-            }
-            
-            // Also update aggressiveness in URL
-            const aggressivenessSlider = document.getElementById('aiAggressiveness');
-            if (aggressivenessSlider) {
-                currentUrl.searchParams.set('optimizer_aggressiveness', aggressivenessSlider.value);
-            }
-            
-            window.history.replaceState({}, '', currentUrl.toString());
-            
-            // Update the properties table with new data
-            if (data.properties) {
-                updatePropertiesTable(data.properties);
-            }
-            
-            // Update slider range if provided
-            if (data.score_min !== undefined && data.score_max !== undefined) {
-                updateSliderRange(data.score_min, data.score_max);
-            }
-            
-            // Clear status after a delay
-            setTimeout(() => {
-                statusDiv.textContent = '';
-            }, 3000);
-        } else {
-            if (data.error.includes('Insufficient ratings')) {
-                statusDiv.textContent = 'Need more ratings for AI ranking';
-                statusDiv.style.color = '#ff8c00';
+            // Check if any AI ranks exist
+            const rows = document.querySelectorAll('table tbody tr[data-ai-rank]');
+            const hasRanks = Array.from(rows).some(r => parseInt(r.dataset.aiRank) < 99999);
+            if (!hasRanks) {
+                status.textContent = '⚠️ No AI rankings available yet — run ai_ranker.py first';
+                status.style.color = '#ff8c00';
             } else {
-                statusDiv.textContent = 'AI ranking temporarily unavailable';
-                statusDiv.style.color = '#dc3545';
+                status.textContent = '✅ Sorted by AI recommendations';
+                status.style.color = '#28a745';
+                setTimeout(() => { status.textContent = ''; }, 3000);
             }
-            
-            // Clear status after a delay
-            setTimeout(() => {
-                statusDiv.textContent = '';
-            }, 5000);
+        } else {
+            description.textContent = 'Sort by Gemini AI recommendations';
+            status.textContent = '';
         }
-    })
-    .catch(error => {
-        console.error('Auto-optimization error:', error);
-        isOptimizing = false;
-        
-        // Restore table opacity
+
+        // Save preference
+        localStorage.setItem('aiRankingEnabled', aiRankingEnabled.toString());
+    }
+
+    function sortTableByCurrentMode() {
+        const tableBody = document.querySelector('table tbody');
+        if (!tableBody) return;
+
+        // Collect all row pairs (data row + details row)
+        const rowPairs = [];
+        const allRows = Array.from(tableBody.children);
+        for (let i = 0; i < allRows.length; i++) {
+            const row = allRows[i];
+            if (row.dataset.aiRank !== undefined) {
+                // This is a data row — the next row is its details row
+                const detailsRow = allRows[i + 1];
+                rowPairs.push({ dataRow: row, detailsRow: detailsRow });
+                i++; // Skip details row
+            }
+        }
+
+        // Sort by the appropriate attribute
+        if (aiRankingEnabled) {
+            rowPairs.sort((a, b) => {
+                const rankA = parseInt(a.dataRow.dataset.aiRank);
+                const rankB = parseInt(b.dataRow.dataset.aiRank);
+                return rankA - rankB;
+            });
+        } else {
+            rowPairs.sort((a, b) => {
+                const scoreA = parseFloat(a.dataRow.dataset.totalScore);
+                const scoreB = parseFloat(b.dataRow.dataset.totalScore);
+                return scoreB - scoreA; // Higher score first
+            });
+        }
+
+        // Re-append in sorted order (moves DOM nodes)
+        const fragment = document.createDocumentFragment();
+        rowPairs.forEach(pair => {
+            fragment.appendChild(pair.dataRow);
+            if (pair.detailsRow) {
+                fragment.appendChild(pair.detailsRow);
+            }
+        });
+        tableBody.appendChild(fragment);
+    }
+
+    function initializeAIRanking() {
+        const toggle = document.getElementById('aiRankingToggle');
+        if (!toggle) return;
+
+        // For non-authenticated users, keep toggle disabled and unchecked (default OFF)
+        if (toggle.disabled) {
+            aiRankingEnabled = false;
+            toggle.checked = false;
+            return;
+        }
+
+        // Load saved preference for authenticated users (default to OFF if no preference)
+        const saved = localStorage.getItem('aiRankingEnabled');
+        if (saved !== null) {
+            aiRankingEnabled = saved === 'true';
+        } else {
+            aiRankingEnabled = false;
+        }
+
+        toggle.checked = aiRankingEnabled;
+
+        // Update UI based on current state
+        const description = document.getElementById('toggleDescription');
+        if (aiRankingEnabled) {
+            description.textContent = 'Sorted by Gemini AI recommendations';
+            // Sort by AI rank on page load if enabled
+            sortTableByCurrentMode();
+        } else {
+            description.textContent = 'Sort by Gemini AI recommendations';
+        }
+    }
+
+    function goToMap() {
+        // Build URL with current parameters
+        const currentParams = new URLSearchParams(window.location.search);
+        const params = new URLSearchParams();
+
+        // Add all current parameters (excluding weight parameters since map doesn't use scoring)
+        for (const [key, value] of currentParams.entries()) {
+            if (!key.startsWith('weight_') && key !== 'optimizer_aggressiveness') {
+                params.append(key, value);
+            }
+        }
+
+        // Navigate to map page with parameters
+        window.location.href = '/map?' + params.toString();
+    }
+
+    function goToSettings() {
+        // Build URL with current parameters (weights, filters, password)
+        const currentParams = new URLSearchParams(window.location.search);
+        const settingsParams = new URLSearchParams();
+
+        // Transfer password if it exists
+        const passwordValue = document.getElementById('password').value;
+        if (passwordValue) {
+            settingsParams.append('password', passwordValue);
+        }
+
+        // Transfer ALL current parameters to settings URL (not just weights)
+        for (const [key, value] of currentParams.entries()) {
+            settingsParams.append(key, value);
+        }
+
+        // Navigate to settings
+        const url = '/settings' + (settingsParams.toString() ? '?' + settingsParams.toString() : '');
+        window.location.href = url;
+    }
+
+    // triggerAutoOptimization and performOptimization removed —
+    // AI Recommendations now uses pre-computed rankings from ai_ranker.py
+
+
+    function updateSliderRange(scoreMin, scoreMax) {
+        const slider = document.getElementById('min_score_threshold');
+        const minLabel = document.querySelector('.slider-labels span:first-child');
+        const maxLabel = document.getElementById('scoreThresholdMax');
+
+        if (slider) {
+            // Update slider attributes but preserve current value
+            const currentValue = parseFloat(slider.value);
+            slider.min = scoreMin.toFixed(1);
+            slider.max = scoreMax.toFixed(1);
+
+            // Only update the value if it's outside the new range
+            if (currentValue < scoreMin) {
+                slider.value = scoreMin.toFixed(1);
+                updateScoreThresholdLabel(slider.value);
+            } else if (currentValue > scoreMax) {
+                slider.value = scoreMax.toFixed(1);
+                updateScoreThresholdLabel(slider.value);
+            }
+        }
+
+        if (minLabel) {
+            minLabel.textContent = scoreMin.toFixed(1);
+        }
+
+        if (maxLabel) {
+            maxLabel.textContent = scoreMax.toFixed(1);
+        }
+    }
+
+    function updatePropertiesTable(properties) {
+        // Find the table body
+        const tableBody = document.querySelector('table tbody');
+        if (!tableBody) {
+            console.error('Could not find table body');
+            return;
+        }
+
+        // Add subtle fade effect during update
+        const tableContainer = document.querySelector('.table-container');
         if (tableContainer) {
-            tableContainer.style.opacity = '1';
+            tableContainer.style.opacity = '0.7';
+            tableContainer.style.transition = 'opacity 0.3s ease';
         }
-        
-        statusDiv.textContent = 'AI ranking temporarily unavailable';
-        statusDiv.style.color = '#dc3545';
-        
-        // Clear status after a delay
-        setTimeout(() => {
-            statusDiv.textContent = '';
-        }, 5000);
-    });
-}
 
+        // Clear current content
+        tableBody.innerHTML = '';
 
-function updateSliderRange(scoreMin, scoreMax) {
-    const slider = document.getElementById('min_score_threshold');
-    const minLabel = document.querySelector('.slider-labels span:first-child');
-    const maxLabel = document.getElementById('scoreThresholdMax');
-    
-    if (slider) {
-        // Update slider attributes but preserve current value
-        const currentValue = parseFloat(slider.value);
-        slider.min = scoreMin.toFixed(1);
-        slider.max = scoreMax.toFixed(1);
-        
-        // Only update the value if it's outside the new range
-        if (currentValue < scoreMin) {
-            slider.value = scoreMin.toFixed(1);
-            updateScoreThresholdLabel(slider.value);
-        } else if (currentValue > scoreMax) {
-            slider.value = scoreMax.toFixed(1);
-            updateScoreThresholdLabel(slider.value);
-        }
-    }
-    
-    if (minLabel) {
-        minLabel.textContent = scoreMin.toFixed(1);
-    }
-    
-    if (maxLabel) {
-        maxLabel.textContent = scoreMax.toFixed(1);
-    }
-}
+        // Rebuild table rows with new data - matching exact template structure
+        properties.forEach((property, index) => {
+            // Create main property row
+            const row = document.createElement('tr');
+            row.dataset.aiRank = property.ai_rank != null ? property.ai_rank : 99999;
+            row.dataset.totalScore = property.total_score || 0;
 
-function updatePropertiesTable(properties) {
-    // Find the table body
-    const tableBody = document.querySelector('table tbody');
-    if (!tableBody) {
-        console.error('Could not find table body');
-        return;
-    }
-    
-    // Add subtle fade effect during update
-    const tableContainer = document.querySelector('.table-container');
-    if (tableContainer) {
-        tableContainer.style.opacity = '0.7';
-        tableContainer.style.transition = 'opacity 0.3s ease';
-    }
-    
-    // Clear current content
-    tableBody.innerHTML = '';
-    
-    // Rebuild table rows with new data - matching exact template structure
-    properties.forEach((property, index) => {
-        // Create main property row
-        const row = document.createElement('tr');
-        
-        row.innerHTML = `
+            row.innerHTML = `
             <td class="rating-column">
                 <select class="rating-select" 
                         onchange="updateRating(${property.zpid}, this.value, document.getElementById('password').value)">
@@ -1196,16 +1061,16 @@ function updatePropertiesTable(properties) {
             </td>
             <td class="price">$${property.price ? property.price.toLocaleString() : 'N/A'}</td>
             <td style="text-align: center;" title="School rating (1-10 scale)">
-                ${property.avg_school_rating ? 
-                    `<span style="color: ${property.school_rating_color || '#999'}; font-weight: bold;">${Math.round(property.avg_school_rating * 10) / 10}</span>` : 
+                ${property.avg_school_rating ?
+                    `<span style="color: ${property.school_rating_color || '#999'}; font-weight: bold;">${Math.round(property.avg_school_rating * 10) / 10}</span>` :
                     '<span style="color: #999999;">-</span>'}
             </td>
             <td style="text-align: center; font-size: 18px;" title="Crime level: ${property.crime_emoji || '❓'}">
                 ${property.crime_emoji || '❓'}
             </td>
             <td style="text-align: center;" title="Drive time to grocery store in minutes">
-                ${property.drive_time ? 
-                    `<span style="color: ${property.drive_time_color || '#999'}; font-weight: bold;">${property.drive_time}min</span>` : 
+                ${property.drive_time ?
+                    `<span style="color: ${property.drive_time_color || '#999'}; font-weight: bold;">${property.drive_time}min</span>` :
                     '<span style="color: #DC143C; font-size: 16px;">🚫</span>'}
             </td>
             <td class="hide-very-small">${property.beds || '-'}</td>
@@ -1217,15 +1082,15 @@ function updatePropertiesTable(properties) {
             <td class="hide-mobile">${property.general_interior_quality || '-'}</td>
             <td class="hide-mobile">${property.privacy_level || '-'}</td>
         `;
-        
-        tableBody.appendChild(row);
-        
-        // Create details row (initially hidden) - matching template structure
-        const detailsRow = document.createElement('tr');
-        detailsRow.id = `details-${property.zpid}`;
-        detailsRow.style.display = 'none';
-        
-        detailsRow.innerHTML = `
+
+            tableBody.appendChild(row);
+
+            // Create details row (initially hidden) - matching template structure
+            const detailsRow = document.createElement('tr');
+            detailsRow.id = `details-${property.zpid}`;
+            detailsRow.style.display = 'none';
+
+            detailsRow.innerHTML = `
             <td colspan="15">
                 <div style="background: #f8f9fa; padding: 15px; border-radius: 6px; margin: 5px 0;">
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; margin-bottom: 15px;">
@@ -1242,10 +1107,10 @@ function updatePropertiesTable(properties) {
                         <div>
                             <h4 style="margin: 0 0 8px 0; color: #667eea;">🛒 Grocery Store</h4>
                             <p style="margin: 0; font-size: 14px;">
-                                ${property.grocery_name ? 
-                                    `${property.grocery_name} - ${property.drive_time || '?'} min drive` +
-                                    (property.grocery_rating ? `<br><small>(${property.grocery_rating}★ rating${property.grocery_ratings_count ? ` from ${property.grocery_ratings_count} reviews` : ''})</small>` : '')
-                                : '<span style="color: #DC143C;">🚫 No grocery information available</span>'}
+                                ${property.grocery_name ?
+                    `${property.grocery_name} - ${property.drive_time || '?'} min drive` +
+                    (property.grocery_rating ? `<br><small>(${property.grocery_rating}★ rating${property.grocery_ratings_count ? ` from ${property.grocery_ratings_count} reviews` : ''})</small>` : '')
+                    : '<span style="color: #DC143C;">🚫 No grocery information available</span>'}
                             </p>
                         </div>
                         <div>
@@ -1262,140 +1127,132 @@ function updatePropertiesTable(properties) {
                 </div>
             </td>
         `;
-        
-        tableBody.appendChild(detailsRow);
-    });
-    
-    // Restore opacity after update
-    setTimeout(() => {
-        if (tableContainer) {
-            tableContainer.style.opacity = '1';
-        }
-    }, 100);
-    
-    console.log(`Updated table with ${properties.length} properties`);
-}
 
-// Check if we just returned from settings and show notification
-function checkForSettingsReturn() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const hasWeightParams = Array.from(urlParams.keys()).some(key => key.startsWith('weight_'));
-    
-    if (hasWeightParams) {
-        // Check if AI ranking was turned off due to manual weights
-        const aiRankingEnabled = localStorage.getItem('aiRankingEnabled') === 'true';
-        if (!aiRankingEnabled) {
+            tableBody.appendChild(detailsRow);
+        });
+
+        // Restore opacity after update
+        setTimeout(() => {
+            if (tableContainer) {
+                tableContainer.style.opacity = '1';
+            }
+        }, 100);
+
+        console.log(`Updated table with ${properties.length} properties`);
+    }
+
+    // Check if we just returned from settings and show notification
+    function checkForSettingsReturn() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const hasWeightParams = Array.from(urlParams.keys()).some(key => key.startsWith('weight_'));
+
+        if (hasWeightParams) {
             const statusDiv = document.getElementById('aiRankingStatus');
             if (statusDiv) {
-                statusDiv.textContent = '⚙️ Manual weights applied - AI Ranking off';
+                statusDiv.textContent = '⚙️ Custom weights applied';
                 statusDiv.style.color = '#ff8c00';
-                
-                // Clear notification after delay
-                setTimeout(() => {
-                    statusDiv.textContent = '';
-                }, 5000);
+                setTimeout(() => { statusDiv.textContent = ''; }, 5000);
             }
         }
     }
-}
 
-// Add Property Modal Functions
-function showAddPropertyModal() {
-    const modal = document.getElementById('addPropertyModal');
-    const urlInput = document.getElementById('zillowUrl');
-    const statusDiv = document.getElementById('urlStatus');
-    const submitBtn = document.getElementById('submitBtn');
-    
-    // Reset modal state
-    urlInput.value = '';
-    statusDiv.textContent = '';
-    statusDiv.style.color = '';
-    
-    // Reset submit button to default state
-    submitBtn.textContent = 'Add Property';
-    submitBtn.disabled = false;
-    submitBtn.onclick = function() { submitProperty(); };
-    
-    // Show modal
-    modal.style.display = 'block';
-    
-    // Focus on input
-    setTimeout(() => urlInput.focus(), 100);
-}
+    // Add Property Modal Functions
+    function showAddPropertyModal() {
+        const modal = document.getElementById('addPropertyModal');
+        const urlInput = document.getElementById('zillowUrl');
+        const statusDiv = document.getElementById('urlStatus');
+        const submitBtn = document.getElementById('submitBtn');
 
-function closeAddPropertyModal() {
-    const modal = document.getElementById('addPropertyModal');
-    modal.style.display = 'none';
-}
+        // Reset modal state
+        urlInput.value = '';
+        statusDiv.textContent = '';
+        statusDiv.style.color = '';
 
-function extractZpidFromUrl(url) {
-    // Extract ZPID from Zillow URL
-    // Example: https://www.zillow.com/homedetails/23131-N-Poe-Valley-Rd-Klamath-Falls-OR-97603/75163204_zpid/?utm_campaign=androidappmessage&utm_medium=referral&utm_source=txtshare
-    const zpidMatch = url.match(/\/(\d+)_zpid/);
-    return zpidMatch ? zpidMatch[1] : null;
-}
-
-function submitProperty() {
-    const urlInput = document.getElementById('zillowUrl');
-    const statusDiv = document.getElementById('urlStatus');
-    const submitBtn = document.getElementById('submitBtn');
-    const passwordInput = document.getElementById('password');
-    
-    const url = urlInput.value.trim();
-    const password = passwordInput.value;
-    
-    // Validate URL
-    if (!url) {
-        statusDiv.textContent = '❌ Please enter a Zillow URL';
-        statusDiv.style.color = '#dc3545';
-        return;
-    }
-    
-    // Check if it's a Zillow URL
-    if (!url.includes('zillow.com')) {
-        statusDiv.textContent = '❌ Please enter a valid Zillow URL';
-        statusDiv.style.color = '#dc3545';
-        return;
-    }
-    
-    // Extract ZPID
-    const zpid = extractZpidFromUrl(url);
-    if (!zpid) {
-        statusDiv.textContent = '❌ Could not extract property ID from URL';
-        statusDiv.style.color = '#dc3545';
-        return;
-    }
-    
-    // Show loading state
-    statusDiv.textContent = '🔄 Processing...';
-    statusDiv.style.color = '#667eea';
-    submitBtn.disabled = true;
-    
-    // Submit to server
-    const formData = new FormData();
-    formData.append('zillow_url', url);
-    formData.append('zpid', zpid);
-    formData.append('password', password);
-    
-    fetch('/add_property', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
+        // Reset submit button to default state
+        submitBtn.textContent = 'Add Property';
         submitBtn.disabled = false;
-        
-        if (data.success) {
-            statusDiv.textContent = data.message;
-            statusDiv.style.color = '#28a745';
-            
-            // Check if this is a "property already exists" message
-            if (data.message.includes('Property already exists')) {
-                // Replace modal content with property details and rating dropdown
-                const modal = document.getElementById('addPropertyModal');
-                const modalContent = modal.querySelector('.modal-content');
+        submitBtn.onclick = function () { submitProperty(); };
 
-                modalContent.innerHTML = `
+        // Show modal
+        modal.style.display = 'block';
+
+        // Focus on input
+        setTimeout(() => urlInput.focus(), 100);
+    }
+
+    function closeAddPropertyModal() {
+        const modal = document.getElementById('addPropertyModal');
+        modal.style.display = 'none';
+    }
+
+    function extractZpidFromUrl(url) {
+        // Extract ZPID from Zillow URL
+        // Example: https://www.zillow.com/homedetails/23131-N-Poe-Valley-Rd-Klamath-Falls-OR-97603/75163204_zpid/?utm_campaign=androidappmessage&utm_medium=referral&utm_source=txtshare
+        const zpidMatch = url.match(/\/(\d+)_zpid/);
+        return zpidMatch ? zpidMatch[1] : null;
+    }
+
+    function submitProperty() {
+        const urlInput = document.getElementById('zillowUrl');
+        const statusDiv = document.getElementById('urlStatus');
+        const submitBtn = document.getElementById('submitBtn');
+        const passwordInput = document.getElementById('password');
+
+        const url = urlInput.value.trim();
+        const password = passwordInput.value;
+
+        // Validate URL
+        if (!url) {
+            statusDiv.textContent = '❌ Please enter a Zillow URL';
+            statusDiv.style.color = '#dc3545';
+            return;
+        }
+
+        // Check if it's a Zillow URL
+        if (!url.includes('zillow.com')) {
+            statusDiv.textContent = '❌ Please enter a valid Zillow URL';
+            statusDiv.style.color = '#dc3545';
+            return;
+        }
+
+        // Extract ZPID
+        const zpid = extractZpidFromUrl(url);
+        if (!zpid) {
+            statusDiv.textContent = '❌ Could not extract property ID from URL';
+            statusDiv.style.color = '#dc3545';
+            return;
+        }
+
+        // Show loading state
+        statusDiv.textContent = '🔄 Processing...';
+        statusDiv.style.color = '#667eea';
+        submitBtn.disabled = true;
+
+        // Submit to server
+        const formData = new FormData();
+        formData.append('zillow_url', url);
+        formData.append('zpid', zpid);
+        formData.append('password', password);
+
+        fetch('/add_property', {
+            method: 'POST',
+            body: formData
+        })
+            .then(response => response.json())
+            .then(data => {
+                submitBtn.disabled = false;
+
+                if (data.success) {
+                    statusDiv.textContent = data.message;
+                    statusDiv.style.color = '#28a745';
+
+                    // Check if this is a "property already exists" message
+                    if (data.message.includes('Property already exists')) {
+                        // Replace modal content with property details and rating dropdown
+                        const modal = document.getElementById('addPropertyModal');
+                        const modalContent = modal.querySelector('.modal-content');
+
+                        modalContent.innerHTML = `
                     <div class="modal-header">
                         <h3>🏠 Property Already Exists</h3>
                         <span class="close" onclick="closeAddPropertyModal()">&times;</span>
@@ -1430,126 +1287,126 @@ function submitProperty() {
                     </div>
                 `;
 
-                // Add event listener for rating changes
-                const ratingSelect = document.getElementById(`property-rating-${data.zpid}`);
-                if (ratingSelect) {
-                    ratingSelect.addEventListener('change', function() {
+                        // Add event listener for rating changes
+                        const ratingSelect = document.getElementById(`property-rating-${data.zpid}`);
+                        if (ratingSelect) {
+                            ratingSelect.addEventListener('change', function () {
+                                const updateBtn = document.getElementById('updateRatingBtn');
+                                if (updateBtn) {
+                                    updateBtn.style.display = this.value !== data.current_rating ? 'inline-block' : 'none';
+                                }
+                            });
+                        }
+
+                        // Initially hide update button if rating hasn't changed
                         const updateBtn = document.getElementById('updateRatingBtn');
                         if (updateBtn) {
-                            updateBtn.style.display = this.value !== data.current_rating ? 'inline-block' : 'none';
+                            updateBtn.style.display = 'none';
                         }
-                    });
-                }
 
-                // Initially hide update button if rating hasn't changed
-                const updateBtn = document.getElementById('updateRatingBtn');
+                    } else {
+                        // For "added for review" messages, close after delay
+                        setTimeout(() => {
+                            closeAddPropertyModal();
+                        }, 2000);
+                    }
+                } else {
+                    statusDiv.textContent = data.message || '❌ Error adding property';
+                    statusDiv.style.color = '#dc3545';
+                }
+            })
+            .catch(error => {
+                console.error('Error adding property:', error);
+                submitBtn.disabled = false;
+                statusDiv.textContent = '❌ Network error. Please try again.';
+                statusDiv.style.color = '#dc3545';
+            });
+    }
+
+    // Update property rating from the property exists modal
+    function updatePropertyRating(zpid) {
+        const password = document.getElementById('password').value;
+        if (!password) {
+            alert('Password required to update ratings');
+            return;
+        }
+
+        const ratingSelect = document.getElementById(`property-rating-${zpid}`);
+        if (!ratingSelect) {
+            alert('Rating selector not found');
+            return;
+        }
+
+        const newRating = ratingSelect.value;
+
+        // Show loading state
+        const updateBtn = document.getElementById('updateRatingBtn');
+        if (updateBtn) {
+            updateBtn.disabled = true;
+            updateBtn.textContent = 'Updating...';
+        }
+
+        const formData = new FormData();
+        formData.append('zpid', zpid);
+        formData.append('rating', newRating);
+        formData.append('password', password);
+
+        fetch('/update_rating', {
+            method: 'POST',
+            body: formData
+        })
+            .then(response => response.json())
+            .then(data => {
                 if (updateBtn) {
-                    updateBtn.style.display = 'none';
+                    updateBtn.disabled = false;
+                    updateBtn.textContent = 'Update Rating';
                 }
 
-            } else {
-                // For "added for review" messages, close after delay
-                setTimeout(() => {
+                if (data.success) {
+                    // Close modal after successful update
                     closeAddPropertyModal();
-                }, 2000);
-            }
-        } else {
-            statusDiv.textContent = data.message || '❌ Error adding property';
-            statusDiv.style.color = '#dc3545';
-        }
-    })
-    .catch(error => {
-        console.error('Error adding property:', error);
-        submitBtn.disabled = false;
-        statusDiv.textContent = '❌ Network error. Please try again.';
-        statusDiv.style.color = '#dc3545';
-    });
-}
 
-// Update property rating from the property exists modal
-function updatePropertyRating(zpid) {
-    const password = document.getElementById('password').value;
-    if (!password) {
-        alert('Password required to update ratings');
-        return;
+                    // Show success message briefly
+                    const statusDiv = document.getElementById('urlStatus');
+                    if (statusDiv) {
+                        statusDiv.textContent = '✅ Rating updated successfully!';
+                        statusDiv.style.color = '#28a745';
+                        setTimeout(() => {
+                            statusDiv.textContent = '';
+                        }, 2000);
+                    }
+
+                    // Reload the page to reflect the updated rating
+                    setTimeout(() => {
+                        location.reload();
+                    }, 500);
+                } else {
+                    alert('Error updating rating: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                console.error('Error updating rating:', error);
+                if (updateBtn) {
+                    updateBtn.disabled = false;
+                    updateBtn.textContent = 'Update Rating';
+                }
+                alert('Error updating rating');
+            });
     }
 
-    const ratingSelect = document.getElementById(`property-rating-${zpid}`);
-    if (!ratingSelect) {
-        alert('Rating selector not found');
-        return;
-    }
-
-    const newRating = ratingSelect.value;
-
-    // Show loading state
-    const updateBtn = document.getElementById('updateRatingBtn');
-    if (updateBtn) {
-        updateBtn.disabled = true;
-        updateBtn.textContent = 'Updating...';
-    }
-
-    const formData = new FormData();
-    formData.append('zpid', zpid);
-    formData.append('rating', newRating);
-    formData.append('password', password);
-
-    fetch('/update_rating', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (updateBtn) {
-            updateBtn.disabled = false;
-            updateBtn.textContent = 'Update Rating';
-        }
-
-        if (data.success) {
-            // Close modal after successful update
+    // Close modal when clicking outside
+    window.onclick = function (event) {
+        const modal = document.getElementById('addPropertyModal');
+        if (event.target === modal) {
             closeAddPropertyModal();
-
-            // Show success message briefly
-            const statusDiv = document.getElementById('urlStatus');
-            if (statusDiv) {
-                statusDiv.textContent = '✅ Rating updated successfully!';
-                statusDiv.style.color = '#28a745';
-                setTimeout(() => {
-                    statusDiv.textContent = '';
-                }, 2000);
-            }
-
-            // Reload the page to reflect the updated rating
-            setTimeout(() => {
-                location.reload();
-            }, 500);
-        } else {
-            alert('Error updating rating: ' + (data.error || 'Unknown error'));
         }
-    })
-    .catch(error => {
-        console.error('Error updating rating:', error);
-        if (updateBtn) {
-            updateBtn.disabled = false;
-            updateBtn.textContent = 'Update Rating';
-        }
-        alert('Error updating rating');
-    });
-}
-
-// Close modal when clicking outside
-window.onclick = function(event) {
-    const modal = document.getElementById('addPropertyModal');
-    if (event.target === modal) {
-        closeAddPropertyModal();
     }
-}
 
-// Initialize AI ranking toggle on page load
-document.addEventListener('DOMContentLoaded', function() {
-    initializeAIRanking();
-    checkForSettingsReturn();
-});
+    // Initialize AI ranking toggle on page load
+    document.addEventListener('DOMContentLoaded', function () {
+        initializeAIRanking();
+        checkForSettingsReturn();
+    });
 </script>
 
 {% endblock %}
