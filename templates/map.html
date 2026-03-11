@@ -1050,7 +1050,7 @@ function initializeThresholdModeFromPreference() {
     }
     if (thresholdLabel) {
         thresholdLabel.textContent = preferredMode === 'ai'
-            ? '🎯 Maximum AI Rank (filters blank ratings only):'
+            ? '🎯 Maximum AI Rank (show top AI-ranked properties):'
             : '🎯 Minimum Score Threshold (filters blank ratings only):';
     }
     updateScoreThresholdLabel(slider.value);

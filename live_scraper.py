@@ -65,7 +65,10 @@ if not GOOGLE_API_KEY:
     raise RuntimeError("GEMINI_API_KEY environment variable is required but not set")
 
 # Global speed multiplier for all wait times (0.5 = 2x faster, 1.0 = normal speed, 2.0 = 2x slower)
-SPEED_MULTIPLIER = 3
+SPEED_MULTIPLIER = 1
+
+# How many days must have passed since last_updated before an existing active listing is re-checked
+LISTING_RECHECK_DAYS = 3
 
 # Scraper settings
 HEADLESS_MODE = False
@@ -206,18 +209,25 @@ def remove_from_for_review(listing_url: str) -> None:
             print(f"    -> ⚠️ Could not remove from for_review table: {e}")
 
 def ensure_properties_status_column(conn: duckdb.DuckDBPyConnection) -> None:
-    """Add the properties.status column if this database predates it."""
+    """Add the properties.status and last_updated columns if this database predates them."""
     columns = {row[1] for row in conn.execute("PRAGMA table_info('properties')").fetchall()}
-    if 'status' in columns:
-        if VERBOSE_LOGGING:
-            print(f"✅ properties table already has status column: {sorted(columns)}")
-        return
 
-    conn.execute("ALTER TABLE properties ADD COLUMN status TEXT")
-    conn.commit()
+    if 'status' not in columns:
+        conn.execute("ALTER TABLE properties ADD COLUMN status TEXT")
+        conn.commit()
+        if VERBOSE_LOGGING:
+            print(f"✅ Added status column to properties table.")
+        columns = columns | {'status'}
+
+    if 'last_updated' not in columns:
+        conn.execute("ALTER TABLE properties ADD COLUMN last_updated TIMESTAMP")
+        conn.commit()
+        if VERBOSE_LOGGING:
+            print(f"✅ Added last_updated column to properties table.")
+        columns = columns | {'last_updated'}
 
     if VERBOSE_LOGGING:
-        print(f"✅ Added status column to properties table. Columns are now: {sorted(columns | {'status'})}")
+        print(f"✅ properties table columns: {sorted(columns)}")
 
 def setup_database(db_path: str = DB_PATH) -> duckdb.DuckDBPyConnection:
     """
@@ -231,7 +241,8 @@ def setup_database(db_path: str = DB_PATH) -> duckdb.DuckDBPyConnection:
             zpid INTEGER PRIMARY KEY,
             source_url TEXT,
             price INTEGER,
-            status TEXT
+            status TEXT,
+            last_updated TIMESTAMP
         )
     """)
     ensure_properties_status_column(conn)
@@ -624,28 +635,10 @@ def create_browser_session(playwright):
     context = browser.contexts[0]
     owns_browser = False
 
-    # Try to reuse existing Zillow tabs rather than always opening fresh ones.
-    # This lets the checkpoint resume system pick up where the browser was left off.
-    page = None
-    listing_page = None
-    for existing in context.pages:
-        try:
-            url = existing.url or ''
-            if page is None and '/homes/for_sale/' in url:
-                page = existing
-                if VERBOSE_LOGGING:
-                    print(f"   Reusing existing search tab: {url[:80]}")
-            elif listing_page is None and 'zillow.com' in url and existing is not page:
-                listing_page = existing
-                if VERBOSE_LOGGING:
-                    print(f"   Reusing existing listing tab: {url[:80]}")
-        except Exception:
-            pass
-
-    if page is None:
-        page = context.new_page()
-    if listing_page is None:
-        listing_page = context.new_page()
+    # Always open fresh tabs so that pre-existing Zillow pages (with active response
+    # headers) don't cause ERR_BLOCKED_BY_RESPONSE on Playwright-driven goto() calls.
+    page = context.new_page()
+    listing_page = context.new_page()
 
     _stealth = Stealth()
     _stealth.apply_stealth_sync(page)
@@ -729,6 +722,15 @@ def update_price_for_existing_zpid(conn: duckdb.DuckDBPyConnection, zpid: int, n
         print("🛑 Price update failure - stopping execution!")
         raise e
 
+_INACTIVE_STATUS_KEYWORDS = ('sold', 'off market', 'pending')
+
+def _is_inactive_status(status: Optional[str]) -> bool:
+    """Return True if the status string indicates a listing is no longer active."""
+    if not status:
+        return False
+    lower = status.lower()
+    return any(kw in lower for kw in _INACTIVE_STATUS_KEYWORDS)
+
 def refresh_existing_listing_status(
     page,
     conn: duckdb.DuckDBPyConnection,
@@ -737,8 +739,11 @@ def refresh_existing_listing_status(
     fallback_price: Optional[int] = None
 ) -> bool:
     """
-    Lightly refresh status for an existing listing without re-running AI analysis.
-    This is primarily used to backfill the new status column for older rows.
+    Lightly refresh status/price for an existing listing without re-running AI analysis.
+
+    Active listings get a full human-like dwell so the browser session looks natural.
+    Inactive listings (sold, off market, pending) are processed quickly — the page is
+    loaded just long enough to read the HTML, then we move on immediately.
     """
     try:
         if VERBOSE_LOGGING:
@@ -747,8 +752,9 @@ def refresh_existing_listing_status(
         # Bring tab to front and navigate
         page.bring_to_front()
         page.goto(listing_url, wait_until='load', timeout=60000)
-        mouse_wander(page)
-        sleep_jitter(3, 0.4)
+
+        # Brief pause + challenge check before reading HTML
+        sleep_jitter(1.5, 0.3)
         if not pause_for_challenge_resolution(page, f"status refresh (ZPID {zpid})"):
             if VERBOSE_LOGGING:
                 print(f"    -> ⏭️ Skipping status refresh for ZPID {zpid} after unresolved challenge.")
@@ -759,7 +765,15 @@ def refresh_existing_listing_status(
         latest_status = normalize_listing_status(property_data.get('status'))
         latest_price = property_data.get('price', fallback_price)
 
-        updates = []
+        # Only dwell / wander on active listings — inactive ones can be closed right away
+        if _is_inactive_status(latest_status):
+            if VERBOSE_LOGGING:
+                print(f"    -> ⚡ Inactive status ({latest_status!r}) — skipping dwell.")
+        else:
+            mouse_wander(page)
+            sleep_jitter(3, 0.4)
+
+        updates = ["last_updated = CURRENT_TIMESTAMP"]
         values = []
 
         if latest_price is not None:
@@ -770,11 +784,12 @@ def refresh_existing_listing_status(
             updates.append("status = ?")
             values.append(latest_status)
 
-        if not updates:
+        if len(updates) == 1:
+            # Only last_updated — no price or status extracted; still stamp the timestamp
+            # so we don't re-check this listing immediately on the next run.
             if VERBOSE_LOGGING:
                 print(f"    -> ⚠️ No status or price extracted for ZPID {zpid}")
                 log_status_debug_context("status_refresh_no_updates", zpid, listing_url, property_data, listing_html)
-            return False
 
         values.append(zpid)
         conn.execute(f"UPDATE properties SET {', '.join(updates)} WHERE zpid = ?", values)
@@ -784,7 +799,7 @@ def refresh_existing_listing_status(
             print(
                 f"    -> ✅ Refreshed existing ZPID {zpid} "
                 f"(price: ${latest_price if latest_price is not None else 'unchanged'}, "
-                f"status: {latest_status or 'blank'})"
+                f"status: {latest_status or 'blank'}, last_updated: now)"
             )
 
         return True
@@ -986,10 +1001,12 @@ def update_properties_table(conn: duckdb.DuckDBPyConnection, zpid: int, listing_
         columns = ', '.join(filtered_data.keys())
         placeholders = ', '.join(['?' for _ in filtered_data])
         
-        # Delete existing record first, then insert fresh data
+        # Delete existing record first, then insert fresh data (stamp last_updated = now)
         conn.execute("DELETE FROM properties WHERE zpid = ?", [zpid])
-        conn.execute(f"INSERT INTO properties ({columns}) VALUES ({placeholders})", 
-                    list(filtered_data.values()))
+        conn.execute(
+            f"INSERT INTO properties ({columns}, last_updated) VALUES ({placeholders}, CURRENT_TIMESTAMP)",
+            list(filtered_data.values())
+        )
         conn.commit()
         
         if VERBOSE_LOGGING:
@@ -1484,6 +1501,67 @@ def process_listing(page, zpid: int, listing_url: str, conn: duckdb.DuckDBPyConn
         raise e
 
 
+def update_existing_listings(page, conn: duckdb.DuckDBPyConnection) -> None:
+    """
+    Pre-scrape step: iterate all active listings in the DB and refresh their price/status.
+
+    A listing is considered "active" when its status is NULL (unknown) or does NOT contain
+    known inactive keywords (sold, off market, pending).  Listings whose last_updated is
+    within the past LISTING_RECHECK_DAYS days are skipped — they were checked recently.
+
+    Uses `refresh_existing_listing_status` (which also sets last_updated = now) so every
+    visited listing gets a fresh timestamp regardless of whether data changed.
+    """
+    from datetime import timedelta
+
+    cutoff = datetime.now() - timedelta(days=LISTING_RECHECK_DAYS)
+
+    rows = conn.execute("""
+        SELECT zpid, source_url, price
+        FROM properties
+        WHERE
+            -- Only active / unknown-status listings
+            (
+                status IS NULL
+                OR (
+                    UPPER(status) NOT LIKE '%SOLD%'
+                    AND UPPER(status) NOT LIKE '%OFF%MARKET%'
+                    AND UPPER(status) NOT LIKE '%PENDING%'
+                )
+            )
+            -- Not checked recently
+            AND (last_updated IS NULL OR last_updated < ?)
+        ORDER BY last_updated ASC NULLS FIRST
+    """, [cutoff]).fetchall()
+
+    if not rows:
+        print("✅ Pre-update: no active listings need refreshing (all checked within the past "
+              f"{LISTING_RECHECK_DAYS} days).")
+        return
+
+    print(f"\n🔄 Pre-update: refreshing {len(rows)} active listing(s) not checked in the past "
+          f"{LISTING_RECHECK_DAYS} day(s)...")
+
+    updated = 0
+    skipped = 0
+    for i, (zpid, source_url, fallback_price) in enumerate(rows):
+        print(f"  [{i+1}/{len(rows)}] ZPID {zpid} — {source_url[:70]}")
+        try:
+            ok = refresh_existing_listing_status(page, conn, zpid, source_url, fallback_price)
+            if ok:
+                updated += 1
+            else:
+                skipped += 1
+        except Exception as e:
+            print(f"    -> ❌ Error refreshing ZPID {zpid}: {e}")
+            print("🛑 Pre-update failure — stopping execution!")
+            raise e
+
+        sleep_jitter(2, 0.4)
+
+    print(f"✅ Pre-update complete: {updated} updated, {skipped} skipped.\n")
+
+
 def run_live_extraction():
     """
     Main function to orchestrate the Zillow scraping and feature extraction process.
@@ -1555,6 +1633,7 @@ def run_live_extraction():
             else:
                 # Step 1: Start from Zillow homepage to avoid captcha
                 print("🌐 Navigating to Zillow homepage first...")
+                page.bring_to_front()
                 page.goto('https://www.zillow.com/', wait_until='domcontentloaded')
                 sleep_jitter(3, 0.35)
                 mouse_wander(page)
@@ -1570,6 +1649,12 @@ def run_live_extraction():
                 if not pause_for_challenge_resolution(page, "search results page load"):
                     raise Exception("Challenge unresolved on search results page")
             
+            # ── Pre-scrape: refresh price/status for all stale active listings ──────
+            update_existing_listings(listing_page, db_conn)
+            # Return focus to the search tab before the main scraping loop begins
+            page.bring_to_front()
+            sleep_jitter(2, 0.35)
+
             current_page_num = resume_page_num
             last_break_time = time.time()
             next_break_interval = random.uniform(10 * 60, 15 * 60)  # first break in 10-15 min
@@ -1688,46 +1773,11 @@ def run_live_extraction():
                     should_process = should_process_zpid(db_conn, zpid)
 
                     if not should_process:
-                        # Check if this is an existing ZPID that needs price update
-                        existing_property = db_conn.execute(
-                            "SELECT status FROM properties WHERE zpid = ?", [zpid]
-                        ).fetchone()
-
-                        if existing_property is not None:
-                            current_status = normalize_listing_status(existing_property[0])
-
-                            if current_status is None:
-                                refresh_existing_listing_status(
-                                    listing_page,
-                                    db_conn,
-                                    zpid,
-                                    link,
-                                    zpid_to_price.get(zpid)
-                                )
-
-                                # Return to search tab before next iteration
-                                page.bring_to_front()
-                                sleep_jitter(1, 0.4)
-                                continue
-
-                            # Update price using data from search results page (no need to open listing)
-                            if zpid in zpid_to_price:
-                                try:
-                                    update_price_for_existing_zpid(db_conn, zpid, zpid_to_price[zpid])
-                                except Exception as e:
-                                    print(f"    -> ❌ Error updating price for ZPID {zpid}: {e}")
-                                    print("🛑 Price update failure - continuing with next listing...")
-                            else:
-                                if VERBOSE_LOGGING:
-                                    print(f"    -> ⚠️ ZPID {zpid} not found in search results, skipping price update")
-                                # If this came from for_review and isn't in search results, remove it
-                                remove_from_for_review(link)
-                            
-                            sleep_jitter(1, 0.4)
-                            continue
-                        else:
-                            # Truly skip this ZPID
-                            continue
+                        # Already fully processed — price/status refreshed during the
+                        # pre-scrape update_existing_listings() step above.
+                        if VERBOSE_LOGGING:
+                            print(f"    -> ⏭️  ZPID {zpid} already in DB — skipping.")
+                        continue
 
                     try:
                         processed_ok = process_listing(listing_page, zpid, link, db_conn)

@@ -212,6 +212,26 @@ def apply_status_filter(results_df, status_filter: list):
 
     return results_df[mask]
 
+def apply_threshold_filter(results_df, ranking_mode: str, min_score_threshold: float, ai_rank_threshold: int):
+    """
+    Apply threshold filtering to a property DataFrame.
+
+    - score mode: preserve existing behavior (threshold only for blank ratings)
+    - ai mode: filter all properties to top-N AI ranks
+    """
+    if ranking_mode == 'ai':
+        if ai_rank_threshold <= 0:
+            return results_df
+        mask = results_df['ai_rank'].notna() & (results_df['ai_rank'] <= ai_rank_threshold)
+        return results_df[mask]
+
+    if min_score_threshold <= 0:
+        return results_df
+
+    # Existing score-threshold behavior: always keep explicitly rated properties.
+    mask = (results_df['rating'] != '') | (results_df['total_score'] >= min_score_threshold)
+    return results_df[mask]
+
 def generate_scoring_sql(weights: dict, params: dict, financing_filter: list = None) -> str:
     """Generate SQL query for property scoring"""
     sql = """
@@ -840,19 +860,13 @@ def index():
         # Apply status filter
         results_df = apply_status_filter(results_df, status_filter)
         
-        # Apply threshold filter (only for blank ratings)
-        if ranking_mode == 'ai':
-            if ai_rank_threshold > 0:
-                # Keep all rated properties; for blank ratings keep only top-N AI ranked properties.
-                mask = (
-                    (results_df['rating'] != '') |
-                    (results_df['ai_rank'].notna() & (results_df['ai_rank'] <= ai_rank_threshold))
-                )
-                results_df = results_df[mask]
-        elif min_score_threshold > 0:
-            # Keep all rated properties; for blank ratings keep only properties above score threshold.
-            mask = (results_df['rating'] != '') | (results_df['total_score'] >= min_score_threshold)
-            results_df = results_df[mask]
+        # Apply threshold filter
+        results_df = apply_threshold_filter(
+            results_df,
+            ranking_mode=ranking_mode,
+            min_score_threshold=min_score_threshold,
+            ai_rank_threshold=ai_rank_threshold
+        )
         
         # Default sorting by total_score descending (no user sorting controls)
         results_df = results_df.sort_values(by='total_score', ascending=False)
@@ -1213,17 +1227,13 @@ def map_view():
         # Apply status filter
         results_df = apply_status_filter(results_df, status_filter)
         
-        # Apply threshold filter (only for blank ratings)
-        if ranking_mode == 'ai':
-            if ai_rank_threshold > 0:
-                mask = (
-                    (results_df['rating'] != '') |
-                    (results_df['ai_rank'].notna() & (results_df['ai_rank'] <= ai_rank_threshold))
-                )
-                results_df = results_df[mask]
-        elif min_score_threshold > 0:
-            mask = (results_df['rating'] != '') | (results_df['total_score'] >= min_score_threshold)
-            results_df = results_df[mask]
+        # Apply threshold filter
+        results_df = apply_threshold_filter(
+            results_df,
+            ranking_mode=ranking_mode,
+            min_score_threshold=min_score_threshold,
+            ai_rank_threshold=ai_rank_threshold
+        )
         
         # Convert to dict for template, handling NaN values properly
         properties = results_df.to_dict('records')
