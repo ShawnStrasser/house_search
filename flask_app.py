@@ -744,12 +744,24 @@ def index():
         if not financing_filter:
             financing_filter = ['eligible']  # Default to only eligible properties
         
-        # Get minimum score threshold filter
+        # Get ranking mode and threshold filters
+        ranking_mode = request.args.get('ranking_mode', 'score')
+        if ranking_mode not in ('score', 'ai'):
+            ranking_mode = 'score'
+
         min_score_threshold = request.args.get('min_score_threshold', '0')
         try:
             min_score_threshold = float(min_score_threshold)
         except ValueError:
             min_score_threshold = 0.0
+
+        ai_rank_threshold = request.args.get('ai_rank_threshold', '0')
+        try:
+            ai_rank_threshold = int(float(ai_rank_threshold))
+        except ValueError:
+            ai_rank_threshold = 0
+        if ai_rank_threshold < 0:
+            ai_rank_threshold = 0
         
         # Get aggressiveness parameter
         aggressiveness = request.args.get('optimizer_aggressiveness', '0.4')
@@ -828,9 +840,17 @@ def index():
         # Apply status filter
         results_df = apply_status_filter(results_df, status_filter)
         
-        # Apply minimum score threshold filter (only for blank ratings)
-        if min_score_threshold > 0:
-            # Keep all properties with ratings, but filter blank ratings by score
+        # Apply threshold filter (only for blank ratings)
+        if ranking_mode == 'ai':
+            if ai_rank_threshold > 0:
+                # Keep all rated properties; for blank ratings keep only top-N AI ranked properties.
+                mask = (
+                    (results_df['rating'] != '') |
+                    (results_df['ai_rank'].notna() & (results_df['ai_rank'] <= ai_rank_threshold))
+                )
+                results_df = results_df[mask]
+        elif min_score_threshold > 0:
+            # Keep all rated properties; for blank ratings keep only properties above score threshold.
             mask = (results_df['rating'] != '') | (results_df['total_score'] >= min_score_threshold)
             results_df = results_df[mask]
         
@@ -856,12 +876,16 @@ def index():
         missing_crime_count = sum(1 for p in properties if p.get('crime_icon_level') is None)
         logger.info(f"Properties with missing crime data: {missing_crime_count} out of {len(properties)}")
         
-        # Calculate score range for slider
+        # Calculate score/rank ranges for threshold slider
         if len(results_df) > 0:
             score_min = 0.0  # Always start from 0, not the minimum score
             score_max = float(results_df['total_score'].max())
+            ai_ranks = results_df['ai_rank'].dropna()
+            ai_rank_min = 1
+            ai_rank_max = int(ai_ranks.max()) if len(ai_ranks) > 0 else 100
         else:
             score_min, score_max = 0.0, 100.0
+            ai_rank_min, ai_rank_max = 1, 100
         
         return render_template('index.html', 
                              properties=properties,
@@ -870,9 +894,13 @@ def index():
                              status_filter=status_filter,
                              available_statuses=available_statuses,
                              financing_filter=financing_filter,
+                             ranking_mode=ranking_mode,
                              min_score_threshold=min_score_threshold,
+                             ai_rank_threshold=ai_rank_threshold,
                              score_min=score_min,
                              score_max=score_max,
+                             ai_rank_min=ai_rank_min,
+                             ai_rank_max=ai_rank_max,
                              current_weights=weights,
                              aggressiveness=aggressiveness,
                              request=request)
@@ -1090,12 +1118,24 @@ def map_view():
         if not financing_filter:
             financing_filter = ['eligible']  # Default to only eligible properties
         
-        # Get minimum score threshold filter
+        # Get ranking mode and threshold filters
+        ranking_mode = request.args.get('ranking_mode', 'score')
+        if ranking_mode not in ('score', 'ai'):
+            ranking_mode = 'score'
+
         min_score_threshold = request.args.get('min_score_threshold', '0')
         try:
             min_score_threshold = float(min_score_threshold)
         except ValueError:
             min_score_threshold = 0.0
+
+        ai_rank_threshold = request.args.get('ai_rank_threshold', '0')
+        try:
+            ai_rank_threshold = int(float(ai_rank_threshold))
+        except ValueError:
+            ai_rank_threshold = 0
+        if ai_rank_threshold < 0:
+            ai_rank_threshold = 0
         
         # Password check
         password = request.args.get('password', '')
@@ -1173,9 +1213,15 @@ def map_view():
         # Apply status filter
         results_df = apply_status_filter(results_df, status_filter)
         
-        # Apply minimum score threshold filter (only for blank ratings)
-        if min_score_threshold > 0:
-            # Keep all properties with ratings, but filter blank ratings by score
+        # Apply threshold filter (only for blank ratings)
+        if ranking_mode == 'ai':
+            if ai_rank_threshold > 0:
+                mask = (
+                    (results_df['rating'] != '') |
+                    (results_df['ai_rank'].notna() & (results_df['ai_rank'] <= ai_rank_threshold))
+                )
+                results_df = results_df[mask]
+        elif min_score_threshold > 0:
             mask = (results_df['rating'] != '') | (results_df['total_score'] >= min_score_threshold)
             results_df = results_df[mask]
         
@@ -1188,12 +1234,16 @@ def map_view():
                 if pd.isna(value):
                     prop[key] = None
         
-        # Calculate score range for slider
+        # Calculate score/rank ranges for threshold slider
         if len(results_df) > 0:
             score_min = 0.0  # Always start from 0, not the minimum score
             score_max = float(results_df['total_score'].max())
+            ai_ranks = results_df['ai_rank'].dropna()
+            ai_rank_min = 1
+            ai_rank_max = int(ai_ranks.max()) if len(ai_ranks) > 0 else 100
         else:
             score_min, score_max = 0.0, 100.0
+            ai_rank_min, ai_rank_max = 1, 100
         
         return render_template('map.html', 
                              properties=properties,
@@ -1202,9 +1252,13 @@ def map_view():
                              status_filter=status_filter,
                              available_statuses=available_statuses,
                              financing_filter=financing_filter,
+                             ranking_mode=ranking_mode,
                              min_score_threshold=min_score_threshold,
+                             ai_rank_threshold=ai_rank_threshold,
                              score_min=score_min,
                              score_max=score_max,
+                             ai_rank_min=ai_rank_min,
+                             ai_rank_max=ai_rank_max,
                              request=request)
                              
     except Exception as e:

@@ -546,8 +546,14 @@
                         if (detailsRow) detailsRow.style.display = 'none';
                     }
                     
-                    // Trigger automatic weight optimization if AI ranking is enabled
-                    if (typeof aiRankingEnabled !== 'undefined' && aiRankingEnabled && !isOptimizing) {
+                    // Legacy auto-optimization hook (guard all optional globals/functions).
+                    if (
+                        typeof aiRankingEnabled !== 'undefined' &&
+                        aiRankingEnabled &&
+                        typeof isOptimizing !== 'undefined' &&
+                        !isOptimizing &&
+                        typeof triggerAutoOptimization === 'function'
+                    ) {
                         triggerAutoOptimization();
                     }
                 } else {

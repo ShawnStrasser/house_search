@@ -30,6 +30,10 @@
         </div>
         {% endif %}
 
+        <!-- Ranking mode state -->
+        <input type="hidden" id="ranking_mode" name="ranking_mode" value="{{ ranking_mode }}">
+        <input type="hidden" id="ai_rank_threshold" name="ai_rank_threshold" value="{{ ai_rank_threshold }}">
+
         <!-- Navigation Links -->
         <div class="control-group">
             <div class="nav-links-container">
@@ -140,17 +144,21 @@
             </div>
         </div>
 
-        <!-- Minimum Score Threshold Filter -->
+        <!-- Threshold Filter -->
         <div class="control-group">
-            <label for="min_score_threshold">🎯 Minimum Score Threshold (filters blank ratings only):</label>
+            <label for="min_score_threshold" id="thresholdLabel">🎯 Minimum Score Threshold (filters blank ratings only):</label>
             <div class="slider-container">
-                <input type="range" id="min_score_threshold" name="min_score_threshold" min="{{ score_min|round(1) }}"
-                    max="{{ score_max|round(1) }}" step="0.1" value="{{ min_score_threshold }}"
-                    oninput="updateScoreThresholdLabel(this.value)" onchange="updateFilters()">
+                <input type="range" id="min_score_threshold" name="min_score_threshold"
+                    min="{% if ranking_mode == 'ai' %}{{ ai_rank_min }}{% else %}{{ score_min|round(1) }}{% endif %}"
+                    max="{% if ranking_mode == 'ai' %}{{ ai_rank_max }}{% else %}{{ score_max|round(1) }}{% endif %}"
+                    step="{% if ranking_mode == 'ai' %}1{% else %}0.1{% endif %}"
+                    value="{% if ranking_mode == 'ai' %}{{ ai_rank_threshold }}{% else %}{{ min_score_threshold }}{% endif %}"
+                    oninput="updateScoreThresholdLabel(this.value); saveThresholdPreference()"
+                    onchange="saveThresholdPreference(); updateFilters()">
                 <div class="slider-labels">
-                    <span>{{ score_min|round(1) }}</span>
-                    <span id="scoreThresholdValue">{{ min_score_threshold }}</span>
-                    <span id="scoreThresholdMax">{{ score_max|round(1) }}</span>
+                    <span id="scoreThresholdMin">{% if ranking_mode == 'ai' %}{{ ai_rank_min }}{% else %}{{ score_min|round(1) }}{% endif %}</span>
+                    <span id="scoreThresholdValue">{% if ranking_mode == 'ai' %}{{ ai_rank_threshold }}{% else %}{{ min_score_threshold }}{% endif %}</span>
+                    <span id="scoreThresholdMax">{% if ranking_mode == 'ai' %}{{ ai_rank_max }}{% else %}{{ score_max|round(1) }}{% endif %}</span>
                 </div>
             </div>
         </div>
@@ -826,6 +834,101 @@
 <script>
     // AI Recommendations state management
     let aiRankingEnabled = false; // Default to OFF
+    const THRESHOLD_STORAGE_KEYS = {
+        score: 'scoreThresholdSelection',
+        ai: 'aiRankThresholdSelection'
+    };
+    const thresholdConfig = {
+        score: {
+            min: {{ score_min|round(1) }},
+            max: {{ score_max|round(1) }},
+            step: 0.1,
+            fallback: {{ min_score_threshold }}
+        },
+        ai: {
+            min: {{ ai_rank_min }},
+            max: {{ ai_rank_max }},
+            step: 1,
+            fallback: {{ ai_rank_threshold }}
+        }
+    };
+
+    function getRankingModeInput() {
+        return document.getElementById('ranking_mode');
+    }
+
+    function getCurrentThresholdMode() {
+        const modeInput = getRankingModeInput();
+        return modeInput && modeInput.value === 'ai' ? 'ai' : 'score';
+    }
+
+    function formatThresholdValue(value, mode) {
+        const numericValue = parseFloat(value);
+        if (Number.isNaN(numericValue)) {
+            return mode === 'ai' ? '0' : '0.0';
+        }
+        return mode === 'ai' ? String(Math.round(numericValue)) : numericValue.toFixed(1);
+    }
+
+    function saveThresholdPreference() {
+        const mode = getCurrentThresholdMode();
+        const slider = document.getElementById('min_score_threshold');
+        if (!slider) return;
+
+        localStorage.setItem(THRESHOLD_STORAGE_KEYS[mode], slider.value);
+        if (mode === 'score') {
+            slider.value = parseFloat(slider.value).toFixed(1);
+        } else {
+            slider.value = String(Math.round(parseFloat(slider.value)));
+        }
+
+        const aiThresholdInput = document.getElementById('ai_rank_threshold');
+        if (aiThresholdInput && mode === 'ai') {
+            aiThresholdInput.value = slider.value;
+        }
+    }
+
+    function setThresholdSliderMode(mode) {
+        const slider = document.getElementById('min_score_threshold');
+        const minLabel = document.getElementById('scoreThresholdMin');
+        const maxLabel = document.getElementById('scoreThresholdMax');
+        const valueLabel = document.getElementById('scoreThresholdValue');
+        const thresholdLabel = document.getElementById('thresholdLabel');
+        const aiThresholdInput = document.getElementById('ai_rank_threshold');
+        const modeInput = getRankingModeInput();
+        if (!slider || !modeInput) return;
+
+        const selectedMode = mode === 'ai' ? 'ai' : 'score';
+        const config = thresholdConfig[selectedMode];
+        const savedValue = localStorage.getItem(THRESHOLD_STORAGE_KEYS[selectedMode]);
+
+        modeInput.value = selectedMode;
+        slider.min = String(config.min);
+        slider.max = String(config.max);
+        slider.step = String(config.step);
+
+        let selectedValue = savedValue !== null ? parseFloat(savedValue) : parseFloat(config.fallback);
+        if (Number.isNaN(selectedValue)) {
+            selectedValue = parseFloat(config.fallback);
+        }
+        selectedValue = Math.max(config.min, Math.min(config.max, selectedValue));
+        if (selectedMode === 'ai') {
+            selectedValue = Math.round(selectedValue);
+            if (aiThresholdInput) {
+                aiThresholdInput.value = String(selectedValue);
+            }
+        }
+
+        slider.value = selectedMode === 'ai' ? String(selectedValue) : selectedValue.toFixed(1);
+        if (minLabel) minLabel.textContent = formatThresholdValue(config.min, selectedMode);
+        if (maxLabel) maxLabel.textContent = formatThresholdValue(config.max, selectedMode);
+        if (valueLabel) valueLabel.textContent = formatThresholdValue(slider.value, selectedMode);
+        if (thresholdLabel) {
+            thresholdLabel.textContent = selectedMode === 'ai'
+                ? '🎯 Maximum AI Rank (filters blank ratings only):'
+                : '🎯 Minimum Score Threshold (filters blank ratings only):';
+        }
+    }
 
     function toggleAIRanking() {
         const toggle = document.getElementById('aiRankingToggle');
@@ -837,7 +940,11 @@
             return;
         }
 
+        // Preserve current mode threshold before switching modes.
+        saveThresholdPreference();
         aiRankingEnabled = toggle.checked;
+        const mode = aiRankingEnabled ? 'ai' : 'score';
+        setThresholdSliderMode(mode);
 
         // Sort the table
         sortTableByCurrentMode();
@@ -864,6 +971,7 @@
 
         // Save preference
         localStorage.setItem('aiRankingEnabled', aiRankingEnabled.toString());
+        updateFilters();
     }
 
     function sortTableByCurrentMode() {
@@ -917,6 +1025,7 @@
         if (toggle.disabled) {
             aiRankingEnabled = false;
             toggle.checked = false;
+            setThresholdSliderMode('score');
             return;
         }
 
@@ -929,6 +1038,14 @@
         }
 
         toggle.checked = aiRankingEnabled;
+        const desiredMode = aiRankingEnabled ? 'ai' : 'score';
+        const modeInput = getRankingModeInput();
+        const needsModeSync = modeInput && modeInput.value !== desiredMode;
+        setThresholdSliderMode(desiredMode);
+        if (needsModeSync) {
+            updateFilters();
+            return;
+        }
 
         // Update UI based on current state
         const description = document.getElementById('toggleDescription');
@@ -982,9 +1099,20 @@
     // AI Recommendations now uses pre-computed rankings from ai_ranker.py
 
 
+    function updateScoreThresholdLabel(value) {
+        const valueElement = document.getElementById('scoreThresholdValue');
+        if (!valueElement) return;
+
+        valueElement.textContent = formatThresholdValue(value, getCurrentThresholdMode());
+    }
+
     function updateSliderRange(scoreMin, scoreMax) {
+        if (getCurrentThresholdMode() === 'ai') {
+            return;
+        }
+
         const slider = document.getElementById('min_score_threshold');
-        const minLabel = document.querySelector('.slider-labels span:first-child');
+        const minLabel = document.getElementById('scoreThresholdMin');
         const maxLabel = document.getElementById('scoreThresholdMax');
 
         if (slider) {
