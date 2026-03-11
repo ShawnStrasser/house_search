@@ -304,16 +304,18 @@ def load_properties(db_path: str, bottom_third_cutoff: bool = True) -> List[Dict
             return []
 
         # Filter out listings that are not actively for sale.
-        # Actual statuses in DB: None(1062), Active(213), For sale(36),
-        # For sale by owner(9), Contingent(4), Off market(1), Pending(1)
-        EXCLUDED_STATUSES = {"Contingent", "Off market", "Pending"}
+        EXCLUDED_STATUSES = {
+            'Active w/contingency', 'Auction', 'Bumpablebuyer', 'Closed',
+            'Contingent', 'House for rent', 'Off market', 'Pending',
+            'Pending inspection', 'Pending short sale', 'Sold', 'Under contract'
+        }
         if "status" in df.columns:
             status_clean = df["status"].fillna("").astype(str).str.strip()
-            exclude_mask = status_clean.isin(EXCLUDED_STATUSES)
+            exclude_mask = status_clean.isin(EXCLUDED_STATUSES) | status_clean.str.startswith("Sold for ")
             excluded = exclude_mask.sum()
             if excluded > 0:
                 df = df[~exclude_mask].copy()
-                logger.info(f"Status filter: excluded {excluded} non-for-sale properties (Contingent/Off market/Pending)")
+                logger.info(f"Status filter: excluded {excluded} non-for-sale properties")
 
         if bottom_third_cutoff and len(df) > 3:
             df["_quick_score"] = 0.0
@@ -552,16 +554,15 @@ def load_existing_rankings(db_path: str) -> Dict[int, int]:
     """Load existing AI rankings from the database. Returns {zpid: ai_rank}."""
     conn = duckdb.connect(db_path, read_only=True)
     try:
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS ai_rankings (
-                zpid INTEGER PRIMARY KEY,
-                ai_rank INTEGER NOT NULL,
-                ranked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
+        # Check if table exists
+        tables = [r[0] for r in conn.execute("SHOW TABLES").fetchall()]
+        if "ai_rankings" not in tables:
+            return {}
+            
         rows = conn.execute("SELECT zpid, ai_rank FROM ai_rankings").fetchall()
         return {row[0]: row[1] for row in rows}
-    except Exception:
+    except Exception as e:
+        logger.warning(f"Failed to load existing rankings: {e}")
         return {}
     finally:
         conn.close()

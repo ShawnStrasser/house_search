@@ -1,10 +1,16 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🏡 Property Scoring App</title>
-        <!-- Use Inter font for premium feel -->
+import re
+
+def update_file(filepath, pattern, replacement):
+    with open(filepath, 'r', encoding='utf-8') as f:
+        content = f.read()
+    
+    new_content = re.sub(pattern, replacement, content, flags=re.DOTALL)
+    
+    with open(filepath, 'w', encoding='utf-8') as f:
+        f.write(new_content)
+
+# Update base.html
+base_style = """    <!-- Use Inter font for premium feel -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -416,309 +422,319 @@
         @media (max-width: 768px) {
             .scroll-to-top { bottom: 20px; right: 20px; width: 44px; height: 44px; font-size: 18px; }
         }
-    </style>
-</head>
-<body>
-    <div class="container">
-        {% block content %}{% endblock %}
-    </div>
+    </style>"""
 
-    <!-- Scroll to Top Button -->
-    <button class="scroll-to-top" id="scrollToTopBtn" title="Scroll to top" aria-label="Scroll to top">
-        ↑
-    </button>
+update_file('c:/Users/shawn/House/templates/base.html', r'<style>.*?</style>', base_style)
 
-    <script>
-        // Handle rating updates
-        function updateRating(zpid, newRating, password) {
-            if (!password) {
-                alert('Password required to update ratings');
-                return;
-            }
-            
-            const formData = new FormData();
-            formData.append('zpid', zpid);
-            formData.append('rating', newRating);
-            formData.append('password', password);
-            
-            fetch('/update_rating', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    // Check if the new rating should be filtered out
-                    const currentFilters = getCurrentRatingFilters();
-                    const shouldShow = shouldShowRating(newRating, currentFilters);
-                    
-                    if (!shouldShow) {
-                        // Hide the row immediately
-                        const row = document.querySelector(`select[onchange*="${zpid}"]`).closest('tr');
-                        const detailsRow = document.getElementById(`details-${zpid}`);
-                        if (row) row.style.display = 'none';
-                        if (detailsRow) detailsRow.style.display = 'none';
-                    }
-                    
-                    // Legacy auto-optimization hook (guard all optional globals/functions).
-                    if (
-                        typeof aiRankingEnabled !== 'undefined' &&
-                        aiRankingEnabled &&
-                        typeof isOptimizing !== 'undefined' &&
-                        !isOptimizing &&
-                        typeof triggerAutoOptimization === 'function'
-                    ) {
-                        triggerAutoOptimization();
-                    }
-                } else {
-                    alert('Error updating rating: ' + (data.error || 'Unknown error'));
-                    // Reset the select to previous value
-                    location.reload();
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('Error updating rating');
-                location.reload();
-            });
-        }
+# Update index.html
+index_style = """<style>
+    /* Navigation links */
+    .nav-links-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 15px;
+        flex-wrap: wrap;
+    }
 
-        // Get current rating filter settings
-        function getCurrentRatingFilters() {
-            const filters = [];
-            if (document.getElementById('filter_yes').checked) filters.push('yes');
-            if (document.getElementById('filter_no').checked) filters.push('no');
-            if (document.getElementById('filter_maybe').checked) filters.push('maybe');
-            if (document.getElementById('filter_blank').checked) filters.push('blank');
-            return filters;
-        }
+    .nav-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 20px;
+        background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+        color: white;
+        text-decoration: none;
+        border-radius: var(--radius-md);
+        font-weight: 600;
+        transition: var(--transition);
+        box-shadow: var(--shadow-sm);
+    }
 
-        // Check if a rating should be shown based on current filters
-        function shouldShowRating(rating, filters) {
-            if (rating === '' || rating === null) {
-                return filters.includes('blank');
-            }
-            return filters.includes(rating);
-        }
+    .nav-link:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-md);
+        color: white;
+    }
 
-        // Filter properties array based on current rating filters
-        function filterPropertiesByRating(properties) {
-            const currentFilters = getCurrentRatingFilters();
-            return properties.filter(property => {
-                return shouldShowRating(property.rating, currentFilters);
-            });
-        }
+    .nav-separator {
+        font-size: 18px;
+        color: var(--text-muted);
+        font-weight: bold;
+    }
 
-        // Sorting functionality removed for simplicity
+    .ai-ranking-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+    }
 
-        // Handle filter updates
-        function updateFilters() {
-            const form = document.getElementById('filterForm');
-            
-            // Preserve all current URL parameters by adding them as hidden inputs
-            const urlParams = new URLSearchParams(window.location.search);
-            
-            // Remove existing hidden weight inputs to avoid duplicates
-            const existingHiddenInputs = form.querySelectorAll('input[type="hidden"][name^="weight_"]');
-            existingHiddenInputs.forEach(input => input.remove());
-            
-            // Add current weight parameters as hidden inputs
-            for (const [key, value] of urlParams.entries()) {
-                if (key.startsWith('weight_')) {
-                    const hiddenInput = document.createElement('input');
-                    hiddenInput.type = 'hidden';
-                    hiddenInput.name = key;
-                    hiddenInput.value = value;
-                    form.appendChild(hiddenInput);
-                }
-            }
-            
-            form.submit();
-        }
+    .toggle-container {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        background: var(--surface-solid);
+        padding: 12px 24px;
+        border-radius: var(--radius-lg);
+        border: 1px solid var(--border);
+        box-shadow: var(--shadow-sm);
+    }
 
-        // Track dirty notes
-        let dirtyNotes = new Set();
+    .toggle-switch {
+        position: relative;
+        display: inline-block;
+        width: 60px;
+        height: 34px;
+    }
 
-        // Mark note as dirty (changed)
-        function markNoteDirty(zpid) {
-            dirtyNotes.add(zpid);
-            const statusDiv = document.getElementById('note-status-' + zpid);
-            if (statusDiv) {
-                statusDiv.textContent = 'Note changed - will be saved when you close this section.';
-                statusDiv.style.color = '#ff8c00';
-                statusDiv.style.fontWeight = '500';
-            }
-        }
+    .toggle-switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
 
-        // Save note to database
-        function saveNote(zpid, noteText, password) {
-            const formData = new FormData();
-            formData.append('zpid', zpid);
-            formData.append('note', noteText);
-            formData.append('password', password);
-            
-            return fetch('/update_note', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    dirtyNotes.delete(zpid);
-                    const statusDiv = document.getElementById('note-status-' + zpid);
-                    if (statusDiv) {
-                        statusDiv.textContent = '✅ Note saved successfully!';
-                        statusDiv.style.color = '#28a745';
-                        statusDiv.style.fontWeight = '500';
-                    }
-                    return true;
-                } else {
-                    const statusDiv = document.getElementById('note-status-' + zpid);
-                    if (statusDiv) {
-                        statusDiv.textContent = '❌ Error saving note: ' + (data.error || 'Unknown error');
-                        statusDiv.style.color = '#dc3545';
-                        statusDiv.style.fontWeight = '500';
-                    }
-                    return false;
-                }
-            })
-            .catch(error => {
-                console.error('Error saving note:', error);
-                const statusDiv = document.getElementById('note-status-' + zpid);
-                if (statusDiv) {
-                    statusDiv.textContent = '❌ Error saving note: Network error';
-                    statusDiv.style.color = '#dc3545';
-                    statusDiv.style.fontWeight = '500';
-                }
-                return false;
-            });
-        }
+    .toggle-slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #cbd5e0;
+        transition: .4s;
+        border-radius: 34px;
+        box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+    }
 
-        // Show/hide property details
-        function showDetails(zpid) {
-            const detailsRow = document.getElementById('details-' + zpid);
-            if (detailsRow.style.display === 'none' || detailsRow.style.display === '') {
-                detailsRow.style.display = 'table-row';
-                const mainRow = document.querySelector(`select[onchange*="${zpid}"]`)?.closest('tr');
-                if (mainRow) mainRow.classList.add('active-details');
-                detailsRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            } else {
-                // Before closing, save any dirty notes
-                if (dirtyNotes.has(zpid)) {
-                    const noteTextarea = document.getElementById('note-' + zpid);
-                    const passwordInput = document.getElementById('password');
-                    
-                    if (noteTextarea && passwordInput && passwordInput.value) {
-                        const statusDiv = document.getElementById('note-status-' + zpid);
-                        if (statusDiv) {
-                            statusDiv.textContent = '💾 Saving note...';
-                            statusDiv.style.color = '#667eea';
-                            statusDiv.style.fontWeight = '500';
-                        }
-                        
-                        saveNote(zpid, noteTextarea.value, passwordInput.value).then(success => {
-                            if (success) {
-                                // Small delay to show success message before closing
-                                setTimeout(() => {
-                                    detailsRow.style.display = 'none';
-                                    const mainRow = document.querySelector(`select[onchange*="${zpid}"]`)?.closest('tr');
-                                    if (mainRow) mainRow.classList.remove('active-details');
-                                }, 1000);
-                            } else {
-                                // Don't close if save failed
-                            }
-                        });
-                    } else {
-                        detailsRow.style.display = 'none';
-                        const mainRow = document.querySelector(`select[onchange*="${zpid}"]`)?.closest('tr');
-                        if (mainRow) mainRow.classList.remove('active-details');
-                    }
-                } else {
-                    detailsRow.style.display = 'none';
-                    const mainRow = document.querySelector(`select[onchange*="${zpid}"]`)?.closest('tr');
-                    if (mainRow) mainRow.classList.remove('active-details');
-                }
-            }
-        }
+    .toggle-slider:before {
+        position: absolute;
+        content: "";
+        height: 26px;
+        width: 26px;
+        left: 4px;
+        bottom: 4px;
+        background-color: white;
+        transition: .4s;
+        border-radius: 50%;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
 
-        // Automatic authentication with saved password
-        function savePassword() {
-            const passwordField = document.getElementById('password');
-            if (passwordField && passwordField.value) {
-                localStorage.setItem('saved_password', passwordField.value);
-            }
-        }
-        
-        function autoAuthenticate() {
-            const savedPassword = localStorage.getItem('saved_password');
-            const currentUrl = new URL(window.location);
-            
-            // If we have a saved password but no password in URL, redirect with password
-            if (savedPassword && !currentUrl.searchParams.get('password')) {
-                currentUrl.searchParams.set('password', savedPassword);
-                window.location.href = currentUrl.toString();
-                return;
-            }
-            
-            // If password field exists and is empty, fill it from storage
-            const passwordField = document.getElementById('password');
-            if (passwordField && savedPassword && !passwordField.value) {
-                passwordField.value = savedPassword;
-            }
-        }
+    input:checked + .toggle-slider {
+        background: linear-gradient(135deg, var(--success) 0%, #20c997 100%);
+    }
 
-        // Update score threshold label
-        function updateScoreThresholdLabel(value) {
-            const valueElement = document.getElementById('scoreThresholdValue');
-            if (valueElement) {
-                valueElement.textContent = parseFloat(value).toFixed(1);
-            }
-        }
+    input:checked + .toggle-slider:before {
+        transform: translateX(26px);
+    }
 
-        // Mobile-friendly table scrolling indicator
-        document.addEventListener('DOMContentLoaded', function() {
-            // Auto-authenticate if password is saved
-            autoAuthenticate();
-            const tableContainer = document.querySelector('.table-scroll');
-            if (tableContainer) {
-                function checkScroll() {
-                    const isScrolled = tableContainer.scrollLeft > 0;
-                    tableContainer.style.borderLeft = isScrolled ? '3px solid #667eea' : 'none';
-                }
-                
-                tableContainer.addEventListener('scroll', checkScroll);
-                checkScroll();
-            }
+    input:disabled + .toggle-slider {
+        background-color: #e2e8f0;
+        cursor: not-allowed;
+    }
 
-            // Scroll to Top Button Functionality
-            const scrollToTopBtn = document.getElementById('scrollToTopBtn');
-            
-            // Show/hide button based on scroll position
-            function toggleScrollButton() {
-                if (window.pageYOffset > 200) {
-                    scrollToTopBtn.classList.add('visible');
-                } else {
-                    scrollToTopBtn.classList.remove('visible');
-                }
-            }
+    input:disabled:checked + .toggle-slider {
+        background: #9ae6b4;
+    }
 
-            // Smooth scroll to top
-            function scrollToTop() {
-                window.scrollTo({
-                    top: 0,
-                    behavior: 'smooth'
-                });
-            }
+    .toggle-label {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
 
-            // Event listeners
-            window.addEventListener('scroll', toggleScrollButton);
-            if (scrollToTopBtn) {
-                scrollToTopBtn.addEventListener('click', scrollToTop);
-            }
+    .toggle-label strong {
+        font-size: 15px;
+        color: var(--text-main);
+    }
 
-            // Initial check
-            toggleScrollButton();
-        });
-    </script>
-</body>
-</html>
+    .toggle-description {
+        font-size: 12px;
+        color: var(--text-muted);
+        font-style: auto;
+        max-width: 250px;
+    }
+
+    .ai-ranking-status {
+        font-size: 13px;
+        font-weight: 600;
+        text-align: center;
+        min-height: 18px;
+        color: var(--primary);
+    }
+
+    .add-property-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .add-property-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 24px;
+        background: linear-gradient(135deg, var(--success) 0%, #20c997 100%);
+        color: white;
+        border: none;
+        border-radius: var(--radius-md);
+        font-weight: 600;
+        font-size: 15px;
+        cursor: pointer;
+        transition: var(--transition);
+        box-shadow: var(--shadow-sm);
+    }
+
+    .add-property-btn:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-md);
+    }
+
+    .add-property-btn:disabled {
+        background: var(--border-focus);
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+    }
+
+    .add-property-hint {
+        font-size: 12px;
+        color: var(--text-muted);
+        text-align: center;
+    }
+
+    /* Modal styles */
+    .modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(15, 23, 42, 0.4);
+        backdrop-filter: blur(4px);
+    }
+
+    .modal-content {
+        background-color: var(--surface-solid);
+        margin: 10% auto;
+        padding: 24px;
+        border: none;
+        border-radius: var(--radius-lg);
+        width: 90%;
+        max-width: 500px;
+        box-shadow: var(--shadow-lg);
+        transform: translateY(0);
+        animation: modalSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    @keyframes modalSlideIn {
+        from { opacity: 0; transform: translateY(-20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .modal-header h3 {
+        margin: 0;
+        color: var(--text-main);
+        font-size: 20px;
+        font-weight: 700;
+    }
+
+    .close {
+        color: var(--text-muted);
+        font-size: 28px;
+        font-weight: bold;
+        cursor: pointer;
+        line-height: 1;
+        transition: color 0.2s;
+    }
+
+    .close:hover { color: var(--danger); }
+
+    .modal-body { margin-bottom: 24px; }
+    .modal-body label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 600;
+        color: var(--text-main);
+    }
+
+    .modal-body input[type="url"] {
+        width: 100%;
+        padding: 12px;
+        border: 2px solid var(--border);
+        border-radius: var(--radius-md);
+        font-size: 15px;
+        box-sizing: border-box;
+        transition: var(--transition);
+    }
+
+    .modal-body input[type="url"]:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+    }
+
+    .modal-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+    }
+
+    .modal-btn {
+        padding: 10px 20px;
+        border: none;
+        border-radius: var(--radius-sm);
+        font-size: 15px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: var(--transition);
+    }
+
+    .modal-btn-primary { background: var(--primary); color: white; }
+    .modal-btn-primary:hover { background: var(--primary-hover); }
+    .modal-btn-secondary { background: #e2e8f0; color: var(--text-main); }
+    .modal-btn-secondary:hover { background: #cbd5e0; }
+
+    @media (max-width: 768px) {
+        .nav-links-container { flex-direction: column; gap: 10px; }
+        .nav-link { width: 100%; max-width: 250px; justify-content: center; }
+        .nav-separator { display: none; }
+        .toggle-container { flex-direction: column; gap: 12px; text-align: center; }
+        .toggle-description { max-width: 300px; }
+        .add-property-btn { width: 100%; justify-content: center; }
+        .modal-content { margin: 5% auto; width: 95%; }
+    }
+</style>"""
+
+update_file('c:/Users/shawn/House/templates/index.html', r'<style>.*?</style>', index_style)
+
+# Inject showDetails JS changes to add/remove active row state
+with open('c:/Users/shawn/House/templates/index.html', 'r', encoding='utf-8') as f:
+    js_content = f.read()
+
+# Make the expandable row have an active tr class
+js_content = js_content.replace(
+    "detailsRow.style.display = 'table-row';", 
+    "detailsRow.style.display = 'table-row';\n                const mainRow = document.querySelector(`select[onchange*=\"${zpid}\"]`).closest('tr');\n                if(mainRow) mainRow.classList.add('active-details');"
+)
+js_content = js_content.replace(
+    "detailsRow.style.display = 'none';", 
+    "detailsRow.style.display = 'none';\n                const mainRow = document.querySelector(`select[onchange*=\"${zpid}\"]`)?.closest('tr');\n                if(mainRow) mainRow.classList.remove('active-details');"
+)
+
+with open('c:/Users/shawn/House/templates/index.html', 'w', encoding='utf-8') as f:
+    f.write(js_content)
+
+print("Updated templates")
