@@ -88,7 +88,7 @@ House/
 ## 🚀 How to Use
 
 1) Update the Zillow search URL
-- Edit `live_scraper.py` and change `search_url` to your target area/filters.
+- Edit `scripts/live_scraper.py` and change `search_url` to your target area/filters.
 
 2) Set environment variables
 - `GEMINI_API_KEY` (Google Generative AI)
@@ -97,13 +97,13 @@ House/
 - `RATINGS_DB_URL` (SQLite Cloud URL for ratings/notes)
 
 3) Run the scraper
-- `python live_scraper.py` (creates/updates `property_data.db` with listings + AI features)
+- `python live_scraper.py` or `python scripts/live_scraper.py` (creates/updates `property_data.db` with listings + AI features)
 
 4) Add crime data
-- Open `crime.ipynb` and run it to populate the `crime` table.
+- Open `notebooks/crime.ipynb` and run it to populate the `crime` table.
 
 5) Add grocery stores
-- `python nearest_grocery.py` (uses `MAPS_API_KEY` to fill the `grocery` table with nearest store + drive time)
+- `python nearest_grocery.py` or `python scripts/nearest_grocery.py` (uses `MAPS_API_KEY` to fill the `grocery` table with nearest store + drive time)
 
 6) Deploy to Railway
 - Push the repo, connect on Railway, set the env vars above, and deploy

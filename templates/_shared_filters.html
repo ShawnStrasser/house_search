@@ -1,0 +1,175 @@
+<div class="controls">
+    <form id="filterForm" method="GET">
+        <input type="hidden" id="ranking_mode" name="ranking_mode" value="{{ ranking_mode }}">
+        <input type="hidden" id="ai_rank_threshold" name="ai_rank_threshold" value="{{ ai_rank_threshold }}">
+        <input type="hidden" id="optimizer_aggressiveness" name="optimizer_aggressiveness" value="{{ aggressiveness }}">
+        {% for weight_key, weight_value in current_weights.items() %}
+        <input type="hidden" name="weight_{{ weight_key }}" value="{{ weight_value }}">
+        {% endfor %}
+
+        <div class="control-group">
+            <div class="nav-links-container">
+                {% if view_mode == 'table' %}
+                <a href="javascript:void(0)" onclick="goToMap()" class="nav-link">
+                    🗺️ Map View
+                </a>
+                {% else %}
+                <a href="javascript:void(0)" onclick="goToTable()" class="nav-link">
+                    📊 Table View
+                </a>
+                {% endif %}
+                <span class="nav-separator">|</span>
+                <a href="javascript:void(0)" onclick="goToSettings()" class="nav-link">
+                    🔧 Settings
+                </a>
+            </div>
+        </div>
+
+        <details class="filter-panel" id="filterPanel">
+            <summary class="filter-summary">
+                <span>Filters</span>
+                <span class="filter-summary-hint">Collapsed by default</span>
+            </summary>
+
+            <div class="filter-panel-content">
+                <div class="control-group">
+                    <label for="password">Password (for editing ratings):</label>
+                    <div class="control-row">
+                        <input
+                            type="text"
+                            id="password"
+                            name="password"
+                            value="{{ password_value }}"
+                            placeholder="Enter password"
+                            maxlength="4"
+                            oninput="savePassword()"
+                        >
+                        <span
+                            id="passwordStatus"
+                            class="{% if password_value and password_correct %}success{% elif password_value %}error{% endif %}"
+                        >
+                            {% if password_value and password_correct %}
+                            ✅ Authenticated - editing enabled
+                            {% elif password_value %}
+                            ❌ Incorrect password
+                            {% endif %}
+                        </span>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <div class="ai-ranking-container">
+                        <div class="toggle-container">
+                            <label class="toggle-switch">
+                                <input
+                                    type="checkbox"
+                                    id="aiRankingToggle"
+                                    {% if ranking_mode == 'ai' %}checked{% endif %}
+                                    {% if not password_correct %}disabled{% endif %}
+                                    onchange="toggleAIRanking()"
+                                >
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <div class="toggle-label">
+                                <strong>🤖 AI Recommendations</strong>
+                                <span class="toggle-description" id="toggleDescription">
+                                    {% if password_correct %}
+                                    Sort by Gemini AI recommendations
+                                    {% else %}
+                                    Sort by AI recommendations (requires login)
+                                    {% endif %}
+                                </span>
+                            </div>
+                        </div>
+                        <div id="aiRankingStatus" class="ai-ranking-status"></div>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <div class="filter-row">
+                        <div class="filter-column">
+                            <label>Show financing eligibility:</label>
+                            <div class="checkbox-group">
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="filter_financing_eligible" name="financing_filter" value="eligible" {% if 'eligible' in financing_filter %}checked{% endif %}>
+                                    <label for="filter_financing_eligible">💰 Eligible</label>
+                                </div>
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="filter_financing_not_eligible" name="financing_filter" value="not_eligible" {% if 'not_eligible' in financing_filter %}checked{% endif %}>
+                                    <label for="filter_financing_not_eligible">🚫 Not Eligible</label>
+                                </div>
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="filter_financing_unknown" name="financing_filter" value="unknown" {% if 'unknown' in financing_filter %}checked{% endif %}>
+                                    <label for="filter_financing_unknown">❓ Unknown</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="filter-column">
+                            <label>Show ratings:</label>
+                            <div class="checkbox-group">
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="filter_yes" name="rating_filter" value="yes" {% if 'yes' in rating_filter %}checked{% endif %}>
+                                    <label for="filter_yes">✅ Yes</label>
+                                </div>
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="filter_no" name="rating_filter" value="no" {% if 'no' in rating_filter %}checked{% endif %}>
+                                    <label for="filter_no">❌ No</label>
+                                </div>
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="filter_maybe" name="rating_filter" value="maybe" {% if 'maybe' in rating_filter %}checked{% endif %}>
+                                    <label for="filter_maybe">🤔 Maybe</label>
+                                </div>
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="filter_blank" name="rating_filter" value="blank" {% if 'blank' in rating_filter %}checked{% endif %}>
+                                    <label for="filter_blank">⚪ Blank</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="filter-column">
+                            <label>Show listing status:</label>
+                            <div class="checkbox-group">
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="filter_status_active" name="status_filter" value="Active" {% if not status_filter or 'Active' in status_filter %}checked{% endif %}>
+                                    <label for="filter_status_active">✅ Active</label>
+                                </div>
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="filter_status_inactive" name="status_filter" value="Inactive" {% if 'Inactive' in status_filter %}checked{% endif %}>
+                                    <label for="filter_status_inactive">❌ Inactive</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </details>
+
+        <div class="control-group">
+            <label for="min_score_threshold" id="thresholdLabel">
+                {% if ranking_mode == 'ai' %}
+                🎯 Maximum AI Rank (show top AI-ranked properties):
+                {% else %}
+                🎯 Minimum Score Threshold (filters blank ratings only):
+                {% endif %}
+            </label>
+            <div class="slider-container">
+                <input
+                    type="range"
+                    id="min_score_threshold"
+                    name="min_score_threshold"
+                    min="{% if ranking_mode == 'ai' %}{{ ai_rank_min }}{% else %}{{ score_min|round(1) }}{% endif %}"
+                    max="{% if ranking_mode == 'ai' %}{{ ai_rank_max }}{% else %}{{ score_max|round(1) }}{% endif %}"
+                    step="{% if ranking_mode == 'ai' %}1{% else %}0.1{% endif %}"
+                    value="{% if ranking_mode == 'ai' %}{{ ai_rank_threshold }}{% else %}{{ min_score_threshold }}{% endif %}"
+                >
+                <div class="slider-labels">
+                    <span id="scoreThresholdMin">{% if ranking_mode == 'ai' %}{{ ai_rank_min }}{% else %}{{ score_min|round(1) }}{% endif %}</span>
+                    <span id="scoreThresholdValue">{% if ranking_mode == 'ai' %}{{ ai_rank_threshold }}{% else %}{{ min_score_threshold }}{% endif %}</span>
+                    <span id="scoreThresholdMax">{% if ranking_mode == 'ai' %}{{ ai_rank_max }}{% else %}{{ score_max|round(1) }}{% endif %}</span>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>

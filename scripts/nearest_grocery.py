@@ -1,0 +1,290 @@
+'''
+This script is used to find the nearest chain or non-chain popular grocery store to a property and store the information in the database.
+It also stores the latitude and longitude of the property.
+'''
+
+
+import os
+import re
+import sys
+import time
+from pathlib import Path
+
+import duckdb
+import googlemaps
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from house_paths import LOCAL_DB_PATH
+
+DB_NAME = str(LOCAL_DB_PATH)
+REVIEW_THRESHOLD = 200 # minimum number of reviews for a store to be considered if not a chain
+SLEEP_BETWEEN_CALLS = 0.0  # increase if you hit rate limits
+
+CHAIN_GROCERS = [
+    # list of chain grocery stores accepted without review threshold
+    "Albertsons",
+    "Safeway",
+    "Fred Meyer",
+    "QFC",
+    "WinCo Foods",
+    "Walmart",
+    "Costco",
+    "Target",
+    "Sam's Club",
+    "Trader Joe's",
+    "Whole Foods Market",
+    "Grocery Outlet",
+    "New Seasons Market",
+    "Market of Choice",
+    "PCC Community Markets",
+    "Haggen",
+    "Yoke's Fresh Market",
+    "Rosauers",
+    "Bi-Mart",
+    "Sprouts Farmers Market",
+    "Natural Grocers",
+    "Raley's",
+    "Uwajimaya",
+    "99 Ranch Market",
+    "H Mart",
+    "IGA",
+]
+
+def compile_chain_patterns(chain_list):
+    pats = []
+    for chain in chain_list:
+        chain_clean = re.sub(r'[^\w\s]', '', chain.lower()).strip()
+        if not chain_clean:
+            continue
+        words = chain_clean.split()
+        if len(words) > 1:
+            pattern = r'\b' + r'\b.*?\b'.join(re.escape(w) for w in words) + r'\b'
+        else:
+            pattern = r'\b' + re.escape(chain_clean) + r'\b'
+        pats.append(re.compile(pattern))
+    return pats
+
+CHAIN_PATTERNS = compile_chain_patterns(CHAIN_GROCERS)
+
+def is_chain_store(store_name: str) -> bool:
+    if not store_name:
+        return False
+    store_name_clean = re.sub(r'[^\w\s]', '', store_name.lower())
+    for p in CHAIN_PATTERNS:
+        if p.search(store_name_clean):
+            return True
+    return False
+
+# create grocery table only if it doesn't exist
+conn = duckdb.connect(DB_NAME)
+conn.execute("""
+CREATE TABLE IF NOT EXISTS grocery (
+    zpid INTEGER,
+    name VARCHAR,
+    drive_time INTEGER,
+    address VARCHAR,
+    rating DOUBLE,
+    user_ratings_total INTEGER
+)
+""")
+
+# create location table only if it doesn't exist
+conn.execute("""
+CREATE TABLE IF NOT EXISTS location (
+    zpid INTEGER,
+    latitude DOUBLE,
+    longitude DOUBLE
+)
+""")
+conn.commit()
+conn.close()
+
+# fetch zpids + addresses that are NOT already in the location table
+conn = duckdb.connect(DB_NAME)
+zpids_addresses_for_location = conn.execute("""
+SELECT p.zpid, pf.full_address
+FROM properties p
+JOIN property_features pf ON p.zpid = pf.zpid
+LEFT JOIN location l ON p.zpid = l.zpid
+WHERE pf.full_address IS NOT NULL 
+  AND l.zpid IS NULL
+""").fetchall()
+conn.close()
+
+# fetch zpids + addresses that are NOT already in the grocery table
+conn = duckdb.connect(DB_NAME)
+zpids_addresses = conn.execute("""
+SELECT p.zpid, pf.full_address
+FROM properties p
+JOIN property_features pf ON p.zpid = pf.zpid
+LEFT JOIN grocery g ON p.zpid = g.zpid
+WHERE pf.full_address IS NOT NULL 
+  AND g.zpid IS NULL
+""").fetchall()
+conn.close()
+
+# Validate API key is present
+MAPS_API_KEY = os.getenv('MAPS_API_KEY')
+if not MAPS_API_KEY:
+    raise RuntimeError("MAPS_API_KEY environment variable is required but not set")
+
+gmaps = googlemaps.Client(key=MAPS_API_KEY)
+
+def get_coordinates_from_address(address, gmaps_client):
+    """
+    Extract latitude and longitude coordinates from an address using Google Maps Geocoding API.
+    
+    Args:
+        address (str): The address to geocode
+        gmaps_client: Initialized Google Maps client
+    
+    Returns:
+        dict: Dictionary with 'lat' and 'lng' keys, or None if address not found
+    
+    Raises:
+        ValueError: If address cannot be geocoded
+        googlemaps.exceptions.ApiError: If API call fails
+    """
+    try:
+        # Geocode the address
+        geocode_result = gmaps_client.geocode(address)
+        
+        if not geocode_result:
+            raise ValueError(f"Address '{address}' could not be found")
+        
+        # Extract coordinates from the first result
+        location = geocode_result[0]['geometry']['location']
+        
+        return {
+            'lat': location['lat'],
+            'lng': location['lng']
+        }
+        
+    except googlemaps.exceptions.ApiError as e:
+        raise googlemaps.exceptions.ApiError(f"Google Maps API error: {e}")
+    except Exception as e:
+        raise ValueError(f"Error geocoding address '{address}': {e}")
+
+def insert_grocery_row(zpid, name, drive_time, address, rating, user_ratings_total):
+    conn = duckdb.connect(DB_NAME)
+    # Simple insert since we only process zpids not already in the table
+    conn.execute(
+        "INSERT INTO grocery (zpid, name, drive_time, address, rating, user_ratings_total) VALUES (?, ?, ?, ?, ?, ?)",
+        [zpid, name, drive_time, address, rating, user_ratings_total]
+    )
+    conn.commit()
+    conn.close()
+
+def insert_location_row(zpid, latitude, longitude):
+    conn = duckdb.connect(DB_NAME)
+    # Simple insert since we only process zpids not already in the table
+    conn.execute(
+        "INSERT INTO location (zpid, latitude, longitude) VALUES (?, ?, ?)",
+        [zpid, latitude, longitude]
+    )
+    conn.commit()
+    conn.close()
+
+# Process locations first
+print(f"Processing {len(zpids_addresses_for_location)} properties for location coordinates...")
+for zpid, address in zpids_addresses_for_location:
+    print(f"Getting coordinates for {zpid}: {address}")
+    try:
+        coords = get_coordinates_from_address(address, gmaps)
+        insert_location_row(zpid, coords['lat'], coords['lng'])
+        print(f"  -> Coordinates: {coords['lat']}, {coords['lng']}")
+    except Exception as e:
+        print(f"  Error getting coordinates: {e}")
+    
+    time.sleep(SLEEP_BETWEEN_CALLS)
+
+print(f"Location processing complete. Now processing {len(zpids_addresses)} properties for grocery stores...")
+
+for zpid, address in zpids_addresses:
+    print(f"Processing {zpid}: {address}")
+    try:
+        geocode_result = gmaps.geocode(address)
+        if not geocode_result:
+            print("  Geocode returned no results")
+            continue
+        loc = geocode_result[0]['geometry']['location']
+        origin_str = f"{loc['lat']},{loc['lng']}"
+    except Exception as e:
+        print("  Geocode error:", e)
+        continue
+
+    try:
+        places_result = gmaps.places_nearby(location=origin_str, rank_by='distance', type='grocery_or_supermarket')
+    except Exception as e:
+        print("  Places API error:", e)
+        time.sleep(SLEEP_BETWEEN_CALLS)
+        continue
+
+    results = places_result.get('results', [])
+    if not results:
+        print("  No nearby grocery_or_supermarket results")
+        continue
+
+    qualifying_store = None
+    for store in results:
+        store_name = store.get('name', '')
+        store_place_id = store.get('place_id')
+        if not store_place_id:
+            continue
+
+        try:
+            place_details = gmaps.place(place_id=store_place_id, fields=['formatted_address', 'rating', 'user_ratings_total'])
+            place_info = place_details.get('result', {}) or {}
+        except Exception as e:
+            print("  Place details error:", e)
+            continue
+
+        user_ratings_total = int(place_info.get('user_ratings_total') or 0)
+        rating = place_info.get('rating')
+
+        # qualification rule: >= threshold OR matches known chain
+        if user_ratings_total >= REVIEW_THRESHOLD or is_chain_store(store_name):
+            qualifying_store = {
+                'name': store_name,
+                'place_id': store_place_id,
+                'address': place_info.get('formatted_address') or store.get('vicinity') or '',
+                'rating': rating,
+                'user_ratings_total': user_ratings_total
+            }
+            print(f"  Found qualifying store: {store_name} ({user_ratings_total} reviews, Chain: {is_chain_store(store_name)})")
+            break
+        else:
+            print(f"  Skipping {store_name}: {user_ratings_total} reviews, not a known chain")
+
+        time.sleep(0.05)  # tiny pause between place detail calls
+
+    if not qualifying_store:
+        print("  No qualifying grocery stores found near this address")
+        continue
+
+    # compute driving time (ensure origin is lat,lng string)
+    try:
+        matrix_result = gmaps.distance_matrix(origins=[origin_str],
+                                              destinations=[f"place_id:{qualifying_store['place_id']}"],
+                                              mode="driving")
+        element = matrix_result['rows'][0]['elements'][0]
+        if element.get('status') == 'OK' and 'duration' in element:
+            drive_time_minutes = round(element['duration']['value'] / 60)
+            insert_grocery_row(zpid,
+                               qualifying_store['name'],
+                               drive_time_minutes,
+                               qualifying_store['address'],
+                               qualifying_store['rating'],
+                               qualifying_store['user_ratings_total'])
+            print(f"  -> {qualifying_store['name']}: {drive_time_minutes} minutes")
+            if qualifying_store['rating'] is not None:
+                print(f"     Rating: {qualifying_store['rating']}/5.0 ({qualifying_store['user_ratings_total']} reviews)")
+        else:
+            print("  Distance matrix status:", element.get('status'))
+    except Exception as e:
+        print("  Distance matrix error:", e)
+
+    time.sleep(SLEEP_BETWEEN_CALLS)

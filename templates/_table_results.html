@@ -1,0 +1,151 @@
+<div class="table-container">
+    {% if properties %}
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr>
+                    <th class="rating-column" title="Your rating for this property">❓</th>
+                    <th class="info-column" title="View property details">ℹ️</th>
+                    <th>Location</th>
+                    <th>Price</th>
+                    <th>🏫 School</th>
+                    <th>🚔 Crime</th>
+                    <th>🛒 Grocery</th>
+                    <th class="hide-very-small">Beds</th>
+                    <th class="hide-very-small">Baths</th>
+                    <th class="hide-mobile">Home (sqft)</th>
+                    <th class="hide-mobile">Lot (acres)</th>
+                    <th class="hide-mobile-kitchen">Kitchen</th>
+                    <th class="hide-mobile">Bath Qual</th>
+                    <th class="hide-mobile">Interior</th>
+                    <th class="hide-mobile">Privacy</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for property in properties %}
+                <tr data-ai-rank="{{ property.ai_rank if property.ai_rank is not none else 99999 }}" data-total-score="{{ property.total_score }}">
+                    <td class="rating-column">
+                        <select class="rating-select" onchange="updateRating({{ property.zpid }}, this.value, document.getElementById('password').value)" {% if not password_correct %}disabled{% endif %}>
+                            <option value="" {% if property.rating == '' %}selected{% endif %}>-</option>
+                            <option value="yes" {% if property.rating == 'yes' %}selected{% endif %}>✅</option>
+                            <option value="maybe" {% if property.rating == 'maybe' %}selected{% endif %}>🤔</option>
+                            <option value="no" {% if property.rating == 'no' %}selected{% endif %}>❌</option>
+                        </select>
+                    </td>
+                    <td class="info-column" style="text-align: center;">
+                        <span class="info-icon" onclick="showDetails({{ property.zpid }})" style="cursor: pointer; font-size: 16px; color: #667eea;" title="Click for property details">ℹ️</span>
+                    </td>
+                    <td class="location-cell">
+                        <a href="{{ property.source_url }}" target="_blank" class="listing-link">{{ property.city_state or 'View Listing' }}</a>
+                    </td>
+                    <td class="price">${{ "{:,.0f}".format(property.price) if property.price is not none else 'N/A' }}</td>
+                    <td style="text-align: center;" title="School rating (1-10 scale)">
+                        {% if property.avg_school_rating %}
+                        <span style="color: {{ property.school_rating_color }}; font-weight: bold;">{{ "%.1f"|format(property.avg_school_rating) }}</span>
+                        {% else %}
+                        <span style="color: #999999;">-</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align: center; font-size: 18px;" title="Crime level: {{ property.crime_emoji or '❓' }}">{{ property.crime_emoji or '❓' }}</td>
+                    <td style="text-align: center;" title="Drive time to grocery store in minutes">
+                        {% if property.drive_time %}
+                        <span style="color: {{ property.drive_time_color }}; font-weight: bold;">{{ property.drive_time }}min</span>
+                        {% else %}
+                        <span style="color: #DC143C; font-size: 16px;">🚫</span>
+                        {% endif %}
+                    </td>
+                    <td class="hide-very-small">{{ property.beds or '-' }}</td>
+                    <td class="hide-very-small">{{ property.baths or '-' }}</td>
+                    <td class="hide-mobile">{{ "{:,.0f}".format(property.home_size_sqft) if property.home_size_sqft else '-' }}</td>
+                    <td class="hide-mobile">{{ "%.1f"|format(property.lot_size_acres) if property.lot_size_acres else '-' }}</td>
+                    <td class="hide-mobile-kitchen">{{ property.kitchen_quality or '-' }}</td>
+                    <td class="hide-mobile">{{ property.bathroom_quality or '-' }}</td>
+                    <td class="hide-mobile">{{ property.general_interior_quality or '-' }}</td>
+                    <td class="hide-mobile">{{ property.privacy_level or '-' }}</td>
+                </tr>
+                <tr id="details-{{ property.zpid }}" class="details-row" style="display: none;">
+                    <td colspan="15" style="padding: 15px; background: #f8f9fa; border-left: 4px solid #667eea;">
+                        <div class="property-details">
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px;">
+                                <div class="show-on-very-small" style="display: none;">
+                                    <h4 style="margin: 0 0 8px 0; color: #667eea;">🏠 Property Details</h4>
+                                    <p style="margin: 0; font-size: 14px;">
+                                        {{ property.beds or '?' }} beds, {{ property.baths or '?' }} baths
+                                        {% if property.home_size_sqft %}<br>{{ "{:,.0f}".format(property.home_size_sqft) }} sqft{% endif %}
+                                        {% if property.lot_size_acres %}<br>{{ "%.1f"|format(property.lot_size_acres) }} acres{% endif %}
+                                    </p>
+                                </div>
+                                <div>
+                                    <h4 style="margin: 0 0 8px 0; color: #667eea;">💰 Financing</h4>
+                                    <p style="margin: 0; font-size: 14px;">{{ property.financing_eligibility_explanation or 'No information available' }}</p>
+                                </div>
+                                {% if property.general_assessment %}
+                                <div>
+                                    <h4 style="margin: 0 0 8px 0; color: #667eea;">🏠 General Assessment</h4>
+                                    <p style="margin: 0; font-size: 14px;">{{ property.general_assessment }}</p>
+                                </div>
+                                {% endif %}
+                                <div>
+                                    <h4 style="margin: 0 0 8px 0; color: #667eea;">✨ Positive Features</h4>
+                                    <p style="margin: 0; font-size: 14px;">{{ property.positive_features_list or 'No special features noted' }}</p>
+                                </div>
+                                {% if property.negative_features_list %}
+                                <div>
+                                    <h4 style="margin: 0 0 8px 0; color: #667eea;">⚠️ Negative Features</h4>
+                                    <p style="margin: 0; font-size: 14px;">{{ property.negative_features_list }}</p>
+                                </div>
+                                {% endif %}
+                                <div>
+                                    <h4 style="margin: 0 0 8px 0; color: #667eea;">🛒 Grocery Store</h4>
+                                    <p style="margin: 0; font-size: 14px;">
+                                        {% if property.grocery_name %}
+                                        {{ property.grocery_name }} - {{ property.drive_time or '?' }} min drive
+                                        {% if property.grocery_rating %}
+                                        <br><small>({{ property.grocery_rating }}★ rating{% if property.grocery_ratings_count %} from {{ property.grocery_ratings_count }} reviews{% endif %})</small>
+                                        {% endif %}
+                                        {% else %}
+                                        <span style="color: #DC143C;">🚫 No grocery information available</span>
+                                        {% endif %}
+                                    </p>
+                                </div>
+                                <div>
+                                    <h4 style="margin: 0 0 8px 0; color: #667eea;">📍 Full Address</h4>
+                                    <p style="margin: 0; font-size: 14px;">{{ property.full_address or 'Address not available' }}</p>
+                                </div>
+                                {% if password_correct %}
+                                <div style="grid-column: 1 / -1;">
+                                    <h4 style="margin: 0 0 8px 0; color: #667eea;">📝 Personal Notes</h4>
+                                    <textarea id="note-{{ property.zpid }}" placeholder="Add your personal notes about this property..." style="width: 100%; min-height: 80px; padding: 8px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px; font-family: inherit; resize: vertical; box-sizing: border-box;" onchange="markNoteDirty({{ property.zpid }})" oninput="markNoteDirty({{ property.zpid }})">{{ property.note or '' }}</textarea>
+                                    <div id="note-status-{{ property.zpid }}" style="margin-top: 5px; font-size: 12px; color: #666; min-height: 16px;">Notes will be saved automatically when you close this section.</div>
+                                </div>
+                                {% endif %}
+                            </div>
+                            <div style="margin-top: 10px; text-align: right;">
+                                <button onclick="showDetails({{ property.zpid }})" style="background: #667eea; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">Close</button>
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div style="padding: 15px; background: #f8f9fa; font-size: 14px; color: #666; border-top: 1px solid #dee2e6;">
+        📱 <strong>Mobile tip:</strong> Swipe left/right to see more columns. Click ℹ️ for property details.
+        <br>
+        🚔 <strong>Crime icons:</strong> 😇 Safest → 😊 Safe → 😐 Average → 😰 Risky → 😱 Most Dangerous | ❓ No Data
+        <br>
+        🏫 <strong>School ratings:</strong> <span style="color: #006400; font-weight: bold;">8.5-10</span> → <span style="color: #228B22; font-weight: bold;">7.0-8.4</span> → <span style="color: #000000; font-weight: bold;">5.5-6.9</span> → <span style="color: #FF8C00; font-weight: bold;">4.0-5.4</span> → <span style="color: #DC143C; font-weight: bold;">1.0-3.9</span> | <span style="color: #999999;">-</span> No Data
+        <br>
+        🛒 <strong>Grocery drive time:</strong> <span style="color: #006400; font-weight: bold;">&lt;5min</span> → <span style="color: #228B22; font-weight: bold;">&lt;10min</span> → <span style="color: #FFD700; font-weight: bold;">&lt;20min</span> → <span style="color: #FF8C00; font-weight: bold;">&lt;40min</span> → <span style="color: #DC143C; font-weight: bold;">&gt;40min</span> | <span style="color: #DC143C;">🚫</span> No Data
+        <br>
+        Showing {{ properties|length }} properties.
+        {% if not password_correct %}Enter password above to edit ratings.{% endif %}
+    </div>
+    {% else %}
+    <div class="no-data">
+        <h3>No properties found</h3>
+        <p>Try adjusting your filters or check your database connection.</p>
+    </div>
+    {% endif %}
+</div>

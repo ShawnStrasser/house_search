@@ -56,3 +56,7 @@ test*
 recordings/
 scraper_checkpoint.json
 property_data.db.wal
+
+tools/captcha/recordings/
+tools/captcha/mouse_profile.json
+tools/captcha/captcha_solved*.png

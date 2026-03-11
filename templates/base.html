@@ -88,6 +88,40 @@
             margin-bottom: 30px;
         }
 
+        .filter-panel {
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            background: rgba(255, 255, 255, 0.55);
+            overflow: hidden;
+        }
+
+        .filter-summary {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            padding: 16px 20px;
+            font-weight: 700;
+            list-style: none;
+            user-select: none;
+            background: rgba(255, 255, 255, 0.7);
+        }
+
+        .filter-summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .filter-summary-hint {
+            color: var(--text-muted);
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .filter-panel-content {
+            padding: 20px 20px 4px;
+            border-top: 1px solid var(--border);
+        }
+
         .control-group {
             margin-bottom: 20px;
         }
@@ -166,6 +200,139 @@
             gap: 24px;
         }
 
+        .nav-links-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .nav-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: var(--radius-md);
+            font-weight: 600;
+            transition: var(--transition);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .nav-link:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+            color: white;
+        }
+
+        .nav-separator {
+            font-size: 18px;
+            color: var(--text-muted);
+            font-weight: bold;
+        }
+
+        .ai-ranking-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            background: var(--surface-solid);
+            padding: 12px 24px;
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #cbd5e0;
+            transition: .4s;
+            border-radius: 34px;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .toggle-switch input:checked + .toggle-slider {
+            background: linear-gradient(135deg, var(--success) 0%, #20c997 100%);
+        }
+
+        .toggle-switch input:checked + .toggle-slider:before {
+            transform: translateX(26px);
+        }
+
+        .toggle-switch input:disabled + .toggle-slider {
+            background-color: #e2e8f0;
+            cursor: not-allowed;
+        }
+
+        .toggle-switch input:disabled:checked + .toggle-slider {
+            background: #9ae6b4;
+        }
+
+        .toggle-label {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .toggle-label strong {
+            font-size: 15px;
+            color: var(--text-main);
+        }
+
+        .toggle-description {
+            font-size: 12px;
+            color: var(--text-muted);
+            max-width: 250px;
+        }
+
+        .ai-ranking-status {
+            font-size: 13px;
+            font-weight: 600;
+            text-align: center;
+            min-height: 18px;
+            color: var(--primary);
+        }
+
         .slider-container {
             margin-top: 15px;
             padding: 0 5px;
@@ -194,7 +361,7 @@
         }
         
         .slider-container input[type="range"]::-webkit-slider-thumb:hover {
-            transform: scale(1.15);
+            background: var(--primary-hover);
         }
 
         .slider-container input[type="range"]::-moz-range-thumb {
@@ -209,7 +376,7 @@
         }
         
         .slider-container input[type="range"]::-moz-range-thumb:hover {
-            transform: scale(1.15);
+            background: var(--primary-hover);
         }
 
         .slider-labels {
@@ -254,7 +421,6 @@
 
         .btn:hover {
             background: var(--primary-hover);
-            transform: translateY(-2px);
             box-shadow: 0 4px 8px rgba(102, 126, 234, 0.4);
         }
 
@@ -347,6 +513,11 @@
             th, td { padding: 10px 6px; }
             .control-row { flex-direction: column; align-items: stretch; }
             .filter-row { grid-template-columns: 1fr; gap: 16px; }
+            .nav-links-container { flex-direction: column; gap: 10px; }
+            .nav-link { width: 100%; max-width: 250px; justify-content: center; }
+            .nav-separator { display: none; }
+            .toggle-container { flex-direction: column; gap: 12px; text-align: center; }
+            .toggle-description { max-width: 300px; }
             .property-details > div { grid-template-columns: 1fr !important; gap: 12px !important; }
             .location-cell { word-wrap: break-word; overflow-wrap: break-word; max-width: 120px; line-height: 1.4; }
         }
@@ -396,11 +567,11 @@
             z-index: 1000;
         }
 
-        .scroll-to-top.visible { opacity: 1; visibility: visible; transform: translateY(0); }
-        .scroll-to-top:hover { transform: translateY(-4px); background: var(--secondary); box-shadow: 0 8px 16px rgba(118, 75, 162, 0.4); }
+        .scroll-to-top.visible { opacity: 1; visibility: visible; }
+        .scroll-to-top:hover { background: var(--secondary); box-shadow: 0 8px 16px rgba(118, 75, 162, 0.4); }
 
         .details-row {
-            transition: all 0.3s ease;
+            /* No transitions */
         }
         
         .details-row td {
@@ -718,6 +889,362 @@
 
             // Initial check
             toggleScrollButton();
+        });
+
+        let filterUpdateTimeout = null;
+        const DEFAULT_AI_RANK_THRESHOLD = 200;
+
+        function getFilterForm() {
+            return document.getElementById('filterForm');
+        }
+
+        function buildFilterParams() {
+            const form = getFilterForm();
+            const params = new URLSearchParams();
+            if (!form) {
+                return params;
+            }
+
+            const formData = new FormData(form);
+            for (const [key, value] of formData.entries()) {
+                params.append(key, value);
+            }
+            return params;
+        }
+
+        function getCurrentViewMode() {
+            return window.propertyViewMode === 'map' ? 'map' : 'table';
+        }
+
+        function getCurrentViewPath() {
+            return getCurrentViewMode() === 'map' ? '/map' : '/';
+        }
+
+        function saveThresholdPreference() {
+            const modeInput = document.getElementById('ranking_mode');
+            const slider = document.getElementById('min_score_threshold');
+            if (!modeInput || !slider) return;
+
+            const mode = modeInput.value === 'ai' ? 'ai' : 'score';
+            syncThresholdInputsFromUi();
+            localStorage.setItem(
+                mode === 'ai' ? 'aiRankThresholdSelection' : 'scoreThresholdSelection',
+                slider.value
+            );
+        }
+
+        function updateScoreThresholdLabel(value) {
+            const modeInput = document.getElementById('ranking_mode');
+            const valueElement = document.getElementById('scoreThresholdValue');
+            if (!valueElement) return;
+
+            const mode = modeInput && modeInput.value === 'ai' ? 'ai' : 'score';
+            const numericValue = parseFloat(value);
+            valueElement.textContent = Number.isNaN(numericValue)
+                ? (mode === 'ai' ? '0' : '0.0')
+                : (mode === 'ai' ? String(Math.round(numericValue)) : numericValue.toFixed(1));
+        }
+
+        function syncPasswordStatus(data) {
+            const statusEl = document.getElementById('passwordStatus');
+            if (!statusEl) return;
+
+            if (!data.password_value) {
+                statusEl.textContent = '';
+                statusEl.className = '';
+                return;
+            }
+
+            statusEl.textContent = data.password_correct
+                ? '✅ Authenticated - editing enabled'
+                : '❌ Incorrect password';
+            statusEl.className = data.password_correct ? 'success' : 'error';
+        }
+
+        function syncFilterUi(data) {
+            const toggle = document.getElementById('aiRankingToggle');
+            const description = document.getElementById('toggleDescription');
+            const addPropertyButton = document.getElementById('addPropertyButton');
+            const rankingModeInput = document.getElementById('ranking_mode');
+            const aiRankThresholdInput = document.getElementById('ai_rank_threshold');
+            const slider = document.getElementById('min_score_threshold');
+            const thresholdLabel = document.getElementById('thresholdLabel');
+            const minLabel = document.getElementById('scoreThresholdMin');
+            const maxLabel = document.getElementById('scoreThresholdMax');
+
+            if (rankingModeInput) rankingModeInput.value = data.ranking_mode;
+            if (aiRankThresholdInput) aiRankThresholdInput.value = data.ai_rank_threshold;
+
+            if (toggle) {
+                toggle.checked = data.ranking_mode === 'ai';
+                toggle.disabled = !data.password_correct;
+            }
+
+            if (description) {
+                description.textContent = data.password_correct
+                    ? 'Sort by Gemini AI recommendations'
+                    : 'Sort by AI recommendations (requires login)';
+            }
+
+            if (addPropertyButton) {
+                addPropertyButton.disabled = !data.password_correct;
+                addPropertyButton.title = data.password_correct ? '' : 'Login required to add properties';
+            }
+
+            if (slider) {
+                const isAi = data.ranking_mode === 'ai';
+                slider.min = isAi ? String(data.ai_rank_min) : Number(data.score_min).toFixed(1);
+                slider.max = isAi ? String(data.ai_rank_max) : Number(data.score_max).toFixed(1);
+                slider.step = isAi ? '1' : '0.1';
+                slider.value = isAi ? String(data.ai_rank_threshold) : Number(data.min_score_threshold).toFixed(1);
+                updateScoreThresholdLabel(slider.value);
+            }
+            syncThresholdInputsFromUi();
+
+            if (thresholdLabel) {
+                thresholdLabel.textContent = data.ranking_mode === 'ai'
+                    ? '🎯 Maximum AI Rank (show top AI-ranked properties):'
+                    : '🎯 Minimum Score Threshold (filters blank ratings only):';
+            }
+            if (minLabel) {
+                minLabel.textContent = data.ranking_mode === 'ai'
+                    ? String(data.ai_rank_min)
+                    : Number(data.score_min).toFixed(1);
+            }
+            if (maxLabel) {
+                maxLabel.textContent = data.ranking_mode === 'ai'
+                    ? String(data.ai_rank_max)
+                    : Number(data.score_max).toFixed(1);
+            }
+
+            syncPasswordStatus(data);
+        }
+
+        function scheduleFilterUpdate(delay = 250) {
+            if (filterUpdateTimeout) {
+                clearTimeout(filterUpdateTimeout);
+            }
+            filterUpdateTimeout = setTimeout(() => {
+                updateFilters();
+            }, delay);
+        }
+
+        function getStoredThresholdValue(mode, fallbackValue) {
+            const storageKey = mode === 'ai' ? 'aiRankThresholdSelection' : 'scoreThresholdSelection';
+            const rawValue = localStorage.getItem(storageKey);
+            const parsedValue = rawValue === null ? NaN : parseFloat(rawValue);
+            if (!Number.isNaN(parsedValue)) {
+                return parsedValue;
+            }
+            return mode === 'ai' ? fallbackValue ?? DEFAULT_AI_RANK_THRESHOLD : fallbackValue ?? 0;
+        }
+
+        function syncThresholdInputsFromUi() {
+            const modeInput = document.getElementById('ranking_mode');
+            const slider = document.getElementById('min_score_threshold');
+            const aiThresholdInput = document.getElementById('ai_rank_threshold');
+            if (!modeInput || !slider || !aiThresholdInput) return;
+
+            if (modeInput.value === 'ai') {
+                const aiValue = Math.max(1, Math.round(parseFloat(slider.value) || DEFAULT_AI_RANK_THRESHOLD));
+                slider.value = String(aiValue);
+                aiThresholdInput.value = String(aiValue);
+            } else {
+                slider.value = Number(parseFloat(slider.value) || 0).toFixed(1);
+            }
+        }
+
+        function initializeAIRanking() {
+            const toggle = document.getElementById('aiRankingToggle');
+            const rankingModeInput = document.getElementById('ranking_mode');
+            if (!toggle || !rankingModeInput) return;
+
+            if (toggle.disabled) {
+                toggle.checked = false;
+                rankingModeInput.value = 'score';
+                return;
+            }
+
+            const savedMode = localStorage.getItem('aiRankingEnabled');
+            if (savedMode === 'true') {
+                toggle.checked = true;
+                rankingModeInput.value = 'ai';
+            } else if (savedMode === 'false') {
+                toggle.checked = false;
+                rankingModeInput.value = 'score';
+            }
+        }
+
+        function initializeThresholdModeFromPreference() {
+            const rankingModeInput = document.getElementById('ranking_mode');
+            const slider = document.getElementById('min_score_threshold');
+            const aiThresholdInput = document.getElementById('ai_rank_threshold');
+            if (!rankingModeInput || !slider || !aiThresholdInput) return;
+
+            const mode = rankingModeInput.value === 'ai' ? 'ai' : 'score';
+            const fallbackValue = mode === 'ai'
+                ? parseInt(aiThresholdInput.value || DEFAULT_AI_RANK_THRESHOLD, 10)
+                : parseFloat(slider.value || 0);
+            const preferredValue = getStoredThresholdValue(mode, fallbackValue);
+
+            if (mode === 'ai') {
+                const aiValue = Math.max(1, Math.round(preferredValue));
+                slider.value = String(aiValue);
+                aiThresholdInput.value = String(aiValue);
+            } else {
+                slider.value = Number(preferredValue).toFixed(1);
+            }
+
+            updateScoreThresholdLabel(slider.value);
+        }
+
+        async function updateFilters(options = {}) {
+            const { pushHistory = true } = options;
+            const form = getFilterForm();
+            if (!form) return;
+
+            const params = buildFilterParams();
+            params.set('view', getCurrentViewMode());
+
+            const resultsContainer = document.getElementById('propertyResults');
+            if (resultsContainer) {
+                resultsContainer.style.opacity = '0.6';
+            }
+
+            try {
+                const response = await fetch(`/api/properties?${params.toString()}`);
+                const data = await response.json();
+                if (!response.ok || data.success === false) {
+                    throw new Error(data.error || 'Failed to update filters');
+                }
+
+                syncFilterUi(data);
+
+                if (resultsContainer) {
+                    resultsContainer.innerHTML = data.results_html;
+                    resultsContainer.style.opacity = '1';
+                }
+
+                if (typeof window.renderPropertyView === 'function') {
+                    window.renderPropertyView(data);
+                }
+
+                if (pushHistory) {
+                    const urlParams = buildFilterParams();
+                    const query = urlParams.toString();
+                    history.replaceState({}, '', `${getCurrentViewPath()}${query ? '?' + query : ''}`);
+                }
+            } catch (error) {
+                console.error('Error updating filters:', error);
+                if (resultsContainer) {
+                    resultsContainer.style.opacity = '1';
+                }
+            }
+        }
+
+        function refreshCurrentPropertyView() {
+            return updateFilters({ pushHistory: false });
+        }
+
+        function toggleAIRanking() {
+            const toggle = document.getElementById('aiRankingToggle');
+            const rankingModeInput = document.getElementById('ranking_mode');
+            const aiRankingStatus = document.getElementById('aiRankingStatus');
+            const slider = document.getElementById('min_score_threshold');
+            const aiThresholdInput = document.getElementById('ai_rank_threshold');
+            if (!toggle || !rankingModeInput || toggle.disabled) return;
+
+            rankingModeInput.value = toggle.checked ? 'ai' : 'score';
+            localStorage.setItem('aiRankingEnabled', toggle.checked ? 'true' : 'false');
+            if (toggle.checked && slider && aiThresholdInput) {
+                const preferredAiThreshold = Math.round(getStoredThresholdValue('ai', DEFAULT_AI_RANK_THRESHOLD));
+                slider.value = String(preferredAiThreshold);
+                aiThresholdInput.value = String(preferredAiThreshold);
+                updateScoreThresholdLabel(slider.value);
+            }
+            if (aiRankingStatus) {
+                aiRankingStatus.textContent = '';
+            }
+            updateFilters();
+        }
+
+        function goToMap() {
+            const params = buildFilterParams();
+            const query = params.toString();
+            window.location.href = `/map${query ? '?' + query : ''}`;
+        }
+
+        function goToTable() {
+            const params = buildFilterParams();
+            const query = params.toString();
+            window.location.href = `/${query ? '?' + query : ''}`;
+        }
+
+        function goToSettings() {
+            const params = buildFilterParams();
+            const query = params.toString();
+            window.location.href = `/settings${query ? '?' + query : ''}`;
+        }
+
+        function updateRating(zpid, newRating, password) {
+            if (!password) {
+                alert('Password required to update ratings');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('zpid', zpid);
+            formData.append('rating', newRating);
+            formData.append('password', password);
+
+            fetch('/update_rating', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (!data.success) {
+                    throw new Error(data.error || 'Unknown error');
+                }
+                refreshCurrentPropertyView();
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error updating rating');
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = getFilterForm();
+            if (!form) return;
+
+            initializeAIRanking();
+            initializeThresholdModeFromPreference();
+
+            form.querySelectorAll('input[type="checkbox"]').forEach(input => {
+                input.addEventListener('change', () => updateFilters());
+            });
+
+            const passwordField = document.getElementById('password');
+            if (passwordField) {
+                passwordField.addEventListener('change', () => updateFilters());
+                passwordField.addEventListener('keydown', event => {
+                    if (event.key === 'Enter') {
+                        event.preventDefault();
+                        updateFilters();
+                    }
+                });
+            }
+
+            const slider = document.getElementById('min_score_threshold');
+            if (slider) {
+                slider.addEventListener('input', () => {
+                    syncThresholdInputsFromUi();
+                    updateScoreThresholdLabel(slider.value);
+                    saveThresholdPreference();
+                    scheduleFilterUpdate(200);
+                });
+            }
         });
     </script>
 </body>

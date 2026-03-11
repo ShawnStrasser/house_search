@@ -1,0 +1,15 @@
+<div class="map-container">
+    {% if properties %}
+    <div id="map" class="property-map"></div>
+    <div class="map-info">
+        📍 <strong>{{ properties|length }} properties</strong> shown on map.
+        Click markers for details.
+        {% if not password_correct %}Enter password above to edit ratings.{% endif %}
+    </div>
+    {% else %}
+    <div class="no-data">
+        <h3>No properties with location data found</h3>
+        <p>Try adjusting your filters or check that properties have been geocoded.</p>
+    </div>
+    {% endif %}
+</div>
