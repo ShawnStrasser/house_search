@@ -1579,6 +1579,25 @@ def update_existing_listings(page, conn: duckdb.DuckDBPyConnection) -> None:
     print(f"✅ Pre-update complete: {updated} updated, {skipped} skipped.\n")
 
 
+def get_next_page_url(page) -> Optional[str]:
+    """
+    Return a usable next-page URL or None when the control is missing/disabled.
+    Zillow can render a disabled "Next page" element on the final page, so we
+    only treat controls with a real href as actionable.
+    """
+    try:
+        for handle in page.query_selector_all('[title="Next page"]'):
+            aria_disabled = (handle.get_attribute("aria-disabled") or "").strip().lower()
+            href = (handle.get_attribute("href") or "").strip()
+            if aria_disabled == "true" or not href or href == "#":
+                continue
+            return href if href.startswith("http") else f"https://www.zillow.com{href}"
+    except Exception as e:
+        if VERBOSE_LOGGING:
+            print(f"    -> ⚠️ Could not inspect next-page control: {e}")
+    return None
+
+
 def run_live_extraction():
     """
     Main function to orchestrate the Zillow scraping and feature extraction process.
@@ -1829,12 +1848,12 @@ def run_live_extraction():
                     # Checkpoint: record that we finished this listing index
                     save_checkpoint(current_page_num, i + 1)
 
-                # Navigate to the next page — re-query fresh to avoid stale ElementHandle
-                next_page_button = page.query_selector('a[title="Next page"]')
-                if next_page_button:
-                    print("\n➡️ Clicking 'Next Page'...")
-                    next_page_button.click()
-                    page.wait_for_load_state('load', timeout=60000)
+                # Navigate to the next page. Zillow may leave a disabled "Next page"
+                # control in the DOM on the final page, so only follow a real href.
+                next_page_url = get_next_page_url(page)
+                if next_page_url:
+                    print("\n➡️ Opening next page...")
+                    page.goto(next_page_url, wait_until='load', timeout=60000)
                     sleep_jitter(5, 0.35)
                     current_page_num += 1
                     resume_listing_index = 0  # full page, no skip needed
@@ -1846,10 +1865,15 @@ def run_live_extraction():
                         print("⚠️  0 listings found on this page — likely a load failure, NOT end of results.")
                         print("   Checkpoint preserved. Re-run the script to retry this page.")
                         break
-                    print("✅ No more pages found. All done!")
-                    clear_checkpoint()
-                    completed_successfully = True
-                    break
+                    if current_page_num > 1:
+                        print("✅ No more pages found after page 1. All done!")
+                        clear_checkpoint()
+                        completed_successfully = True
+                        break
+                    raise RuntimeError(
+                        "No usable next-page control was found on page 1. "
+                        "Treating this as an unexpected page-load/pagination failure."
+                    )
 
         except Exception as e:
             print(f"❌ An error occurred in the main process: {e}")
