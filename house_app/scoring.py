@@ -173,11 +173,25 @@ def generate_scoring_sql(weights: dict, params: dict, financing_filter: list = N
         LEFT JOIN ai_rankings ar ON p.zpid = ar.zpid
     ),
 
+    price_stats AS (
+        SELECT
+            quantile_cont(price, {price_floor_quantile}) AS price_floor,
+            quantile_cont(price, {price_ceiling_quantile}) AS price_ceiling
+        FROM base_features
+        WHERE price IS NOT NULL
+    ),
+
     normalized_scores AS (
         SELECT
             zpid,
 
-            (1 - ((price - MIN(price) OVER()) / NULLIF(MAX(price) OVER() - MIN(price) OVER(), 0))) * 100 AS price_score,
+            (
+                1 - (
+                    (
+                        LEAST(GREATEST(price, ps.price_floor), ps.price_ceiling) - ps.price_floor
+                    ) / NULLIF(ps.price_ceiling - ps.price_floor, 0)
+                )
+            ) * 100 AS price_score,
             LEAST(beds, 5) / 5.0 * 100 AS beds_score,
             LEAST(baths, 4) / 4.0 * 100 AS baths_score,
 
@@ -187,7 +201,16 @@ def generate_scoring_sql(weights: dict, params: dict, financing_filter: list = N
                 ELSE (COALESCE(home_size_sqft, 0) / {home_size_tier1_sqft}) * 80.0
             END AS home_size_sqft_score,
 
-            LEAST(COALESCE(lot_size_acres, 0) / {lot_size_cap_acres}, 1.0) * 100 AS lot_size_acres_score,
+            -- Large lots only help when the land is actually usable.
+            LEAST(COALESCE(lot_size_acres, 0) / {lot_size_cap_acres}, 1.0) * 100 *
+            CASE
+                WHEN land_usability >= 5 THEN 1.0
+                WHEN land_usability >= 4 THEN 0.85
+                WHEN land_usability >= 3 THEN 0.60
+                WHEN land_usability >= 2 THEN 0.20
+                WHEN land_usability >= 1 THEN 0.0
+                ELSE 0.35
+            END AS lot_size_acres_score,
 
             (COALESCE(kitchen_quality, 3) - 1) * 25.0 AS kitchen_quality_score,
             (COALESCE(bathroom_quality, 3) - 1) * 25.0 AS bathroom_quality_score,
@@ -201,6 +224,17 @@ def generate_scoring_sql(weights: dict, params: dict, financing_filter: list = N
             (COALESCE(road_exposure, 3) - 1) * 25.0 AS road_exposure_score,
             (COALESCE(vegetation_density, 3) - 1) * 25.0 AS vegetation_density_score,
             (COALESCE(positive_features_score, 3) - 1) * 25.0 AS positive_features_score_score,
+            CASE
+                -- Moderate "rural normal" issues should stay near neutral, while
+                -- genuine red flags like railroad adjacency or flood-zone problems
+                -- should materially lower the score.
+                WHEN negative_features_severity >= 5 THEN 100.0
+                WHEN negative_features_severity >= 4 THEN 80.0
+                WHEN negative_features_severity >= 3 THEN 55.0
+                WHEN negative_features_severity >= 2 THEN 15.0
+                WHEN negative_features_severity >= 1 THEN 0.0
+                ELSE 55.0
+            END AS negative_features_severity_score,
 
             CAST(dedicated_office AS INTEGER) * 100 AS dedicated_office_score,
             (1 - (COALESCE(drive_time, {drive_time_max_minutes}) / {drive_time_max_minutes})) * 100 AS drive_time_score,
@@ -243,6 +277,7 @@ def generate_scoring_sql(weights: dict, params: dict, financing_filter: list = N
             ((1 - (COALESCE(violent_100k, {max_violent_crime_100k} / 2.0) / {max_violent_crime_100k})) * 100 +
              (1 - (COALESCE(property_100k, {max_property_crime_100k} / 2.0) / {max_property_crime_100k})) * 100) / 2.0 AS avg_crime_severity_score
         FROM base_features
+        CROSS JOIN price_stats ps
     )
     """.format(**params)
 
@@ -297,6 +332,7 @@ def generate_scoring_sql(weights: dict, params: dict, financing_filter: list = N
         ns.road_exposure_score,
         ns.vegetation_density_score,
         ns.positive_features_score_score,
+        ns.negative_features_severity_score,
         ns.dedicated_office_score,
         ns.drive_time_score,
         ns.avg_risk_severity_score,

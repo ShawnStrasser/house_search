@@ -5,6 +5,8 @@ DEFAULT_SCORING_PARAMETERS = {
     "home_size_tier1_sqft": 2000,
     "home_size_tier2_sqft": 3000,
     "lot_size_cap_acres": 8.0,
+    "price_floor_quantile": 0.01,
+    "price_ceiling_quantile": 0.95,
     "school_dist_full_points_miles": 1.0,
     "school_dist_zero_points_miles": 20.0,
     "max_violent_crime_100k": 720.0,
@@ -40,6 +42,7 @@ DEFAULT_FEATURE_WEIGHTS = {
     "road_exposure": 8,            # Higher road exposure is better (5=private road, 1=highway)
     "vegetation_density": 2,
     "positive_features_score": 2,  # Renamed from unusual_features_rating
+    "negative_features_severity": 6,  # Significant unusual drawbacks should meaningfully lower rank
     
     # Boolean features
     "dedicated_office": 10,
