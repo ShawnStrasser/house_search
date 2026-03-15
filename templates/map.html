@@ -478,12 +478,17 @@ function isUnratedProperty(property) {
     return property.rating === '' || property.rating === null || property.rating === undefined;
 }
 
+function getRankingMetricValue(property, rankingMode) {
+    const rawValue = rankingMode === 'ai' ? property.ai_rank : property.score_rank;
+    const numericValue = Number(rawValue);
+    return Number.isFinite(numericValue) ? numericValue : NaN;
+}
+
 function getUnratedMarkerScale(properties, rankingMode) {
     const candidateValues = (properties || [])
         .filter(isUnratedProperty)
-        .map(property => rankingMode === 'ai' ? property.ai_rank : property.total_score)
-        .filter(value => value !== null && value !== undefined && !Number.isNaN(Number(value)))
-        .map(Number);
+        .map(property => getRankingMetricValue(property, rankingMode))
+        .filter(value => !Number.isNaN(value));
 
     if (candidateValues.length === 0) {
         return null;
@@ -500,7 +505,7 @@ function getUnratedOutlineColor(property, markerScale, rankingMode) {
         return getMarkerColor(property.rating);
     }
 
-    const metricValue = rankingMode === 'ai' ? Number(property.ai_rank) : Number(property.total_score);
+    const metricValue = getRankingMetricValue(property, rankingMode);
     if (!markerScale || Number.isNaN(metricValue)) {
         return '#cbd5e0';
     }
@@ -510,9 +515,8 @@ function getUnratedOutlineColor(property, markerScale, rankingMode) {
         return 'hsl(120, 70%, 42%)';
     }
 
-    const normalizedValue = rankingMode === 'ai'
-        ? (max - metricValue) / (max - min)
-        : (metricValue - min) / (max - min);
+    // Lower rank number is better in both modes (1 is best), so both use identical normalization.
+    const normalizedValue = (max - metricValue) / (max - min);
     const clampedValue = Math.max(0, Math.min(1, normalizedValue));
     const hue = Math.round(clampedValue * 120);
     return `hsl(${hue}, 70%, 42%)`;
