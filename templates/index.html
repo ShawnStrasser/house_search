@@ -209,13 +209,13 @@
             min: {{ score_min|round(1) }},
             max: {{ score_max|round(1) }},
             step: 0.1,
-            fallback: {{ min_score_threshold }}
+            fallback: {{ rank_threshold }}
         },
         ai: {
             min: {{ ai_rank_min }},
             max: {{ ai_rank_max }},
             step: 1,
-            fallback: {{ ai_rank_threshold }}
+            fallback: {{ rank_threshold }}
         }
     };
 

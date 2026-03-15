@@ -96,17 +96,27 @@ def apply_status_filter(results_df, status_filter: list):
     return results_df[mask]
 
 
-def apply_threshold_filter(results_df, ranking_mode: str, min_score_threshold: float, ai_rank_threshold: int):
-    if ranking_mode == "ai":
-        if ai_rank_threshold <= 0:
-            return results_df
-        mask = results_df["ai_rank"].notna() & (results_df["ai_rank"] <= ai_rank_threshold)
-        return results_df[mask]
+def add_score_ranks(results_df):
+    ranked_df = results_df.sort_values(
+        by=["total_score", "zpid"],
+        ascending=[False, True],
+        na_position="last",
+    ).copy()
+    ranked_df["score_rank"] = range(1, len(ranked_df) + 1)
+    return ranked_df
 
-    if min_score_threshold <= 0:
+
+def apply_threshold_filter(results_df, ranking_mode: str, rank_threshold: int):
+    if rank_threshold <= 0:
         return results_df
 
-    mask = (results_df["rating"] != "") | (results_df["total_score"] >= min_score_threshold)
+    if ranking_mode == "ai":
+        mask = results_df["ai_rank"].notna() & (results_df["ai_rank"] <= rank_threshold)
+        return results_df[mask]
+
+    if "score_rank" not in results_df.columns:
+        results_df = add_score_ranks(results_df)
+    mask = results_df["score_rank"] <= rank_threshold
     return results_df[mask]
 
 
@@ -503,6 +513,9 @@ def apply_rating_filter(results_df, rating_filter: list):
 
 
 def calculate_threshold_ranges(results_df):
+    rank_min = 1
+    rank_max = max(1, len(results_df))
+
     if len(results_df) > 0:
         score_min = 0.0
         score_max = float(results_df["total_score"].max())
@@ -512,4 +525,4 @@ def calculate_threshold_ranges(results_df):
     else:
         score_min, score_max = 0.0, 100.0
         ai_rank_min, ai_rank_max = 1, 100
-    return score_min, score_max, ai_rank_min, ai_rank_max
+    return rank_min, rank_max, score_min, score_max, ai_rank_min, ai_rank_max

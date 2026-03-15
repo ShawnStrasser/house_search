@@ -1,7 +1,6 @@
 <div class="controls">
     <form id="filterForm" method="GET">
         <input type="hidden" id="ranking_mode" name="ranking_mode" value="{{ ranking_mode }}">
-        <input type="hidden" id="ai_rank_threshold" name="ai_rank_threshold" value="{{ ai_rank_threshold }}">
         <input type="hidden" id="optimizer_aggressiveness" name="optimizer_aggressiveness" value="{{ aggressiveness }}">
         {% for weight_key, weight_value in current_weights.items() %}
         <input type="hidden" name="weight_{{ weight_key }}" value="{{ weight_value }}">
@@ -147,27 +146,23 @@
         </details>
 
         <div class="control-group">
-            <label for="min_score_threshold" id="thresholdLabel">
-                {% if ranking_mode == 'ai' %}
-                🎯 Maximum AI Rank (show top AI-ranked properties):
-                {% else %}
-                🎯 Minimum Score Threshold (filters blank ratings only):
-                {% endif %}
+            <label for="rank_threshold" id="thresholdLabel">
+                🎯 Maximum Rank (show top N properties):
             </label>
             <div class="slider-container">
                 <input
                     type="range"
-                    id="min_score_threshold"
-                    name="min_score_threshold"
-                    min="{% if ranking_mode == 'ai' %}{{ ai_rank_min }}{% else %}{{ score_min|round(1) }}{% endif %}"
-                    max="{% if ranking_mode == 'ai' %}{{ ai_rank_max }}{% else %}{{ score_max|round(1) }}{% endif %}"
-                    step="{% if ranking_mode == 'ai' %}1{% else %}0.1{% endif %}"
-                    value="{% if ranking_mode == 'ai' %}{{ ai_rank_threshold }}{% else %}{{ min_score_threshold }}{% endif %}"
+                    id="rank_threshold"
+                    name="rank_threshold"
+                    min="{{ rank_min }}"
+                    max="{{ rank_max }}"
+                    step="1"
+                    value="{{ rank_threshold }}"
                 >
                 <div class="slider-labels">
-                    <span id="scoreThresholdMin">{% if ranking_mode == 'ai' %}{{ ai_rank_min }}{% else %}{{ score_min|round(1) }}{% endif %}</span>
-                    <span id="scoreThresholdValue">{% if ranking_mode == 'ai' %}{{ ai_rank_threshold }}{% else %}{{ min_score_threshold }}{% endif %}</span>
-                    <span id="scoreThresholdMax">{% if ranking_mode == 'ai' %}{{ ai_rank_max }}{% else %}{{ score_max|round(1) }}{% endif %}</span>
+                    <span id="scoreThresholdMin">{{ rank_min }}</span>
+                    <span id="scoreThresholdValue">{{ rank_threshold }}</span>
+                    <span id="scoreThresholdMax">{{ rank_max }}</span>
                 </div>
             </div>
         </div>

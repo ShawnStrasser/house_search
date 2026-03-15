@@ -9,6 +9,7 @@ from .presentation import (
     dataframe_to_property_records,
 )
 from .scoring import (
+    add_score_ranks,
     apply_rating_filter,
     apply_status_filter,
     apply_threshold_filter,
@@ -17,7 +18,6 @@ from .scoring import (
     get_available_statuses,
     parse_aggressiveness,
     parse_common_filters,
-    parse_float_value,
     parse_non_negative_int_value,
     parse_ranking_mode,
     parse_weight_overrides,
@@ -30,8 +30,7 @@ def build_property_view_context(request_data, view_mode: str):
     weights = parse_weight_overrides(request_data, DEFAULT_FEATURE_WEIGHTS)
     rating_filter, status_filter, financing_filter = parse_common_filters(request_data)
     ranking_mode = parse_ranking_mode(request_data)
-    min_score_threshold = parse_float_value(request_data, "min_score_threshold", 0.0)
-    ai_rank_threshold = parse_non_negative_int_value(request_data, "ai_rank_threshold", 200)
+    rank_threshold = max(1, parse_non_negative_int_value(request_data, "rank_threshold", 200))
     aggressiveness = parse_aggressiveness(request_data)
     password_value = request_data.get("password", "")
     password_correct = password_value == CORRECT_PASSWORD
@@ -49,14 +48,15 @@ def build_property_view_context(request_data, view_mode: str):
     results_df = add_crime_icon_levels(results_df)
     results_df = apply_rating_filter(results_df, rating_filter)
     results_df = apply_status_filter(results_df, status_filter)
+    results_df = add_score_ranks(results_df)
 
-    score_min, score_max, ai_rank_min, ai_rank_max = calculate_threshold_ranges(results_df)
+    rank_min, rank_max, score_min, score_max, ai_rank_min, ai_rank_max = calculate_threshold_ranges(results_df)
+    rank_threshold = max(rank_min, min(rank_max, rank_threshold))
 
     results_df = apply_threshold_filter(
         results_df,
         ranking_mode=ranking_mode,
-        min_score_threshold=min_score_threshold,
-        ai_rank_threshold=ai_rank_threshold,
+        rank_threshold=rank_threshold,
     )
 
     if ranking_mode == "ai":
@@ -66,7 +66,11 @@ def build_property_view_context(request_data, view_mode: str):
             na_position="last",
         )
     else:
-        results_df = results_df.sort_values(by="total_score", ascending=False)
+        results_df = results_df.sort_values(
+            by=["score_rank", "total_score"],
+            ascending=[True, False],
+            na_position="last",
+        )
 
     results_df = add_crime_emoji_column(results_df)
     properties = dataframe_to_property_records(results_df, normalize_all_nans=True)
@@ -80,8 +84,9 @@ def build_property_view_context(request_data, view_mode: str):
         "available_statuses": get_available_statuses(),
         "financing_filter": financing_filter,
         "ranking_mode": ranking_mode,
-        "min_score_threshold": min_score_threshold,
-        "ai_rank_threshold": ai_rank_threshold,
+        "rank_threshold": rank_threshold,
+        "rank_min": rank_min,
+        "rank_max": rank_max,
         "score_min": score_min,
         "score_max": score_max,
         "ai_rank_min": ai_rank_min,

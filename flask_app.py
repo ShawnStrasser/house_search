@@ -23,13 +23,15 @@ from house_app.presentation import (
     get_crime_emoji,
 )
 from house_app.scoring import (
+    add_score_ranks,
     apply_rating_filter,
     apply_status_filter,
+    apply_threshold_filter,
     ensure_local_database_schema,
     fetch_scored_properties,
     parse_aggressiveness,
     parse_common_filters,
-    parse_float_value,
+    parse_non_negative_int_value,
     parse_weight_overrides,
 )
 from house_app.settings import CORRECT_PASSWORD, DB_PATH, RATINGS_DB_URL, SECRET_KEY
@@ -276,7 +278,7 @@ def optimize_weights():
         params = DEFAULT_SCORING_PARAMETERS.copy()
         current_weights = parse_weight_overrides(request.form, DEFAULT_FEATURE_WEIGHTS)
         rating_filter, status_filter, financing_filter = parse_common_filters(request.form)
-        min_score_threshold = parse_float_value(request.form, "min_score_threshold", 0.0)
+        rank_threshold = max(1, parse_non_negative_int_value(request.form, "rank_threshold", 200))
         aggressiveness = parse_aggressiveness(request.form)
 
         logger.info(f"Starting weight optimization process with aggressiveness={aggressiveness}...")
@@ -338,13 +340,17 @@ def optimize_weights():
                 new_properties_df = add_crime_emoji_column(new_properties_df)
 
                 new_properties_df = apply_rating_filter(new_properties_df, rating_filter)
-                if min_score_threshold > 0:
-                    mask = (new_properties_df["rating"] != "") | (
-                        new_properties_df["total_score"] >= min_score_threshold
-                    )
-                    new_properties_df = new_properties_df[mask]
-
-                new_properties_df = new_properties_df.sort_values(by="total_score", ascending=False)
+                new_properties_df = add_score_ranks(new_properties_df)
+                new_properties_df = apply_threshold_filter(
+                    new_properties_df,
+                    ranking_mode="score",
+                    rank_threshold=rank_threshold,
+                )
+                new_properties_df = new_properties_df.sort_values(
+                    by=["score_rank", "total_score"],
+                    ascending=[True, False],
+                    na_position="last",
+                )
                 properties_list = dataframe_to_property_records(new_properties_df, normalize_all_nans=True)
                 if len(new_properties_df) > 0:
                     score_min = 0.0
