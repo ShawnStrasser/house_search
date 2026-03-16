@@ -432,6 +432,9 @@ function initializeMap(preferredViewState = null) {
         const group = new L.featureGroup(markersLayer.getLayers());
         map.fitBounds(group.getBounds().pad(0.1));
     }
+
+    map.on('moveend zoomend', filterTableToMapExtent);
+    filterTableToMapExtent();
 }
 
 function addPropertyMarkers() {
@@ -552,6 +555,48 @@ function updateMarkerColor(zpid, rating) {
     const rankingMode = document.getElementById('ranking_mode')?.value === 'ai' ? 'ai' : 'score';
     const markerScale = getUnratedMarkerScale(properties, rankingMode);
     marker.setIcon(createMarkerIcon(property, markerScale, rankingMode));
+}
+
+function filterTableToMapExtent() {
+    if (!map) {
+        return;
+    }
+
+    const tableBody = document.querySelector('.table-container tbody');
+    if (!tableBody) {
+        return;
+    }
+
+    const bounds = map.getBounds();
+    const properties = window.propertiesData || [];
+    const propertiesByZpid = new Map(properties.map(property => [String(property.zpid), property]));
+    const dataRows = tableBody.querySelectorAll('tr[data-zpid]');
+
+    let visibleCount = 0;
+    dataRows.forEach(row => {
+        const zpid = row.dataset.zpid;
+        const property = propertiesByZpid.get(String(zpid));
+        const lat = Number(property?.latitude);
+        const lng = Number(property?.longitude);
+        const hasValidCoordinates = Number.isFinite(lat) && Number.isFinite(lng);
+        const isVisible = hasValidCoordinates && bounds.contains([lat, lng]);
+
+        row.style.display = isVisible ? '' : 'none';
+
+        const detailsRow = document.getElementById(`details-${zpid}`);
+        if (detailsRow && !isVisible) {
+            detailsRow.style.display = 'none';
+        }
+
+        if (isVisible) {
+            visibleCount += 1;
+        }
+    });
+
+    const info = document.getElementById('mapExtentTableInfo');
+    if (info) {
+        info.textContent = `Showing ${visibleCount} properties within the current map extent.`;
+    }
 }
 
 function showPropertyModal(property) {

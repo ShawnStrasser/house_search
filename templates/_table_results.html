@@ -23,7 +23,7 @@
             </thead>
             <tbody>
                 {% for property in properties %}
-                <tr data-ai-rank="{{ property.ai_rank if property.ai_rank is not none else 99999 }}" data-total-score="{{ property.total_score }}">
+                <tr data-zpid="{{ property.zpid }}" data-ai-rank="{{ property.ai_rank if property.ai_rank is not none else 99999 }}" data-total-score="{{ property.total_score }}">
                     <td class="rating-column">
                         <select class="rating-select" onchange="updateRating({{ property.zpid }}, this.value, document.getElementById('password').value)" {% if not password_correct %}disabled{% endif %}>
                             <option value="" {% if property.rating == '' %}selected{% endif %}>-</option>

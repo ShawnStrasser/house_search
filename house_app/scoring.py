@@ -496,7 +496,19 @@ def parse_common_filters(request_data):
     if not financing_filter:
         financing_filter = ["eligible"]
 
-    return rating_filter, status_filter, financing_filter
+    office_with_water_or_view = request_data.get("office_with_water_or_view") in {"1", "true", "on", "yes"}
+
+    return rating_filter, status_filter, financing_filter, office_with_water_or_view
+
+
+def apply_office_with_water_or_view_filter(results_df, enabled: bool):
+    if not enabled or len(results_df) == 0:
+        return results_df
+
+    has_office = results_df["dedicated_office"].fillna(False).astype(bool)
+    has_waterfront = results_df["waterfront_quality"].fillna(1).astype(float) >= 2
+    has_view = results_df["view_rating"].fillna(1).astype(float) >= 3
+    return results_df[has_office & (has_waterfront | has_view)]
 
 
 def fetch_scored_properties(weights: dict, params: dict, financing_filter: list):

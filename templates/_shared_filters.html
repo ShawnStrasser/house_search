@@ -139,6 +139,24 @@
                                 </div>
                             </div>
                         </div>
+
+                        <div class="filter-column">
+                            <label>Special listing filters:</label>
+                            <div class="checkbox-group">
+                                <div class="checkbox-item">
+                                    <input
+                                        type="checkbox"
+                                        id="filter_office_with_water_or_view"
+                                        name="office_with_water_or_view"
+                                        value="1"
+                                        {% if office_with_water_or_view %}checked{% endif %}
+                                    >
+                                    <label for="filter_office_with_water_or_view">
+                                        🏠 Office + (waterfront or view)
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 

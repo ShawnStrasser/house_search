@@ -33,6 +33,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from house_paths import LOCAL_DB_PATH
+from scripts.ratings_filter import get_remote_no_rated_zpids
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -309,6 +310,18 @@ def load_properties(db_path: str, bottom_third_cutoff: bool = True) -> List[Dict
 
         if len(df) == 0:
             return []
+
+        remote_no_zpids = get_remote_no_rated_zpids(verbose=False)
+        if remote_no_zpids and "zpid" in df.columns:
+            no_rated_mask = df["zpid"].isin(remote_no_zpids)
+            no_rated_excluded = int(no_rated_mask.sum())
+            if no_rated_excluded > 0:
+                df = df[~no_rated_mask].copy()
+                logger.info(
+                    f"Remote rating filter: excluded {no_rated_excluded} properties rated 'no' by user"
+                )
+                if len(df) == 0:
+                    return []
 
         # Filter out listings that are not actively for sale.
         EXCLUDED_STATUSES = {

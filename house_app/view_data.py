@@ -10,6 +10,7 @@ from .presentation import (
 )
 from .scoring import (
     add_score_ranks,
+    apply_office_with_water_or_view_filter,
     apply_rating_filter,
     apply_status_filter,
     apply_threshold_filter,
@@ -28,7 +29,7 @@ from .settings import CORRECT_PASSWORD
 def build_property_view_context(request_data, view_mode: str):
     params = DEFAULT_SCORING_PARAMETERS.copy()
     weights = parse_weight_overrides(request_data, DEFAULT_FEATURE_WEIGHTS)
-    rating_filter, status_filter, financing_filter = parse_common_filters(request_data)
+    rating_filter, status_filter, financing_filter, office_with_water_or_view = parse_common_filters(request_data)
     ranking_mode = parse_ranking_mode(request_data)
     rank_threshold = max(1, parse_non_negative_int_value(request_data, "rank_threshold", 200))
     aggressiveness = parse_aggressiveness(request_data)
@@ -48,6 +49,7 @@ def build_property_view_context(request_data, view_mode: str):
     results_df = add_crime_icon_levels(results_df)
     results_df = apply_rating_filter(results_df, rating_filter)
     results_df = apply_status_filter(results_df, status_filter)
+    results_df = apply_office_with_water_or_view_filter(results_df, office_with_water_or_view)
     results_df = add_score_ranks(results_df)
 
     rank_min, rank_max, score_min, score_max, ai_rank_min, ai_rank_max = calculate_threshold_ranges(results_df)
@@ -83,6 +85,7 @@ def build_property_view_context(request_data, view_mode: str):
         "status_filter": status_filter,
         "available_statuses": get_available_statuses(),
         "financing_filter": financing_filter,
+        "office_with_water_or_view": office_with_water_or_view,
         "ranking_mode": ranking_mode,
         "rank_threshold": rank_threshold,
         "rank_min": rank_min,

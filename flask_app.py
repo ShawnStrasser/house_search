@@ -277,7 +277,7 @@ def optimize_weights():
 
         params = DEFAULT_SCORING_PARAMETERS.copy()
         current_weights = parse_weight_overrides(request.form, DEFAULT_FEATURE_WEIGHTS)
-        rating_filter, status_filter, financing_filter = parse_common_filters(request.form)
+        rating_filter, status_filter, financing_filter, _office_with_water_or_view = parse_common_filters(request.form)
         rank_threshold = max(1, parse_non_negative_int_value(request.form, "rank_threshold", 200))
         aggressiveness = parse_aggressiveness(request.form)
 

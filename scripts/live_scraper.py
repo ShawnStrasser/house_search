@@ -35,7 +35,7 @@ import subprocess
 import traceback
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Set
 import io
 
 import duckdb
@@ -53,6 +53,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from house_paths import LOCAL_DB_PATH, SCRAPER_CHECKPOINT_PATH
+from scripts.ratings_filter import get_remote_no_rated_zpids
 
 try:
     from scripts.feature_extraction import (
@@ -1622,7 +1623,11 @@ def process_listing(page, zpid: int, listing_url: str, conn: duckdb.DuckDBPyConn
         raise e
 
 
-def update_existing_listings(page, conn: duckdb.DuckDBPyConnection) -> None:
+def update_existing_listings(
+    page,
+    conn: duckdb.DuckDBPyConnection,
+    excluded_zpids: Optional[Set[int]] = None,
+) -> None:
     """
     Pre-scrape step: iterate all active listings in the DB and refresh their price/status.
 
@@ -1641,7 +1646,11 @@ def update_existing_listings(page, conn: duckdb.DuckDBPyConnection) -> None:
         f"'{status.upper()}'" for status in sorted(EXCLUDED_NON_FOR_SALE_STATUSES)
     )
 
-    rows = conn.execute(f"""
+    if excluded_zpids is None:
+        excluded_zpids = get_remote_no_rated_zpids(verbose=VERBOSE_LOGGING)
+    excluded_zpids = set(excluded_zpids or set())
+
+    query = f"""
         SELECT zpid, source_url, price
         FROM properties
         WHERE
@@ -1655,12 +1664,23 @@ def update_existing_listings(page, conn: duckdb.DuckDBPyConnection) -> None:
             )
             -- Not checked recently
             AND (last_updated IS NULL OR last_updated < ?)
+    """
+    params: List[Any] = [cutoff]
+    if excluded_zpids:
+        placeholders = ", ".join(["?"] * len(excluded_zpids))
+        query += f"\n            AND zpid NOT IN ({placeholders})"
+        params.extend(sorted(excluded_zpids))
+
+    query += """
         ORDER BY last_updated ASC NULLS FIRST
-    """, [cutoff]).fetchall()
+    """
+    rows = conn.execute(query, params).fetchall()
 
     if not rows:
-        print("✅ Pre-update: no active listings need refreshing (all checked within the past "
-              f"{LISTING_RECHECK_DAYS} days).")
+        print(
+            "✅ Pre-update: no active listings need refreshing (all checked within the past "
+            f"{LISTING_RECHECK_DAYS} days, excluding {len(excluded_zpids)} user-'no' listings)."
+        )
         return
 
     print(f"\n🔄 Pre-update: refreshing {len(rows)} active listing(s) not checked in the past "
@@ -1830,7 +1850,8 @@ def run_live_extraction():
                     raise Exception("Challenge unresolved on search results page")
             
             # ── Pre-scrape: refresh price/status for all stale active listings ──────
-            update_existing_listings(listing_page, db_conn)
+            no_rated_zpids = get_remote_no_rated_zpids(verbose=VERBOSE_LOGGING)
+            update_existing_listings(listing_page, db_conn, excluded_zpids=no_rated_zpids)
             # Return focus to the search tab before the main scraping loop begins
             page.bring_to_front()
             sleep_jitter(2, 0.35)
@@ -1974,6 +1995,13 @@ def run_live_extraction():
                         continue
 
                     zpid = int(zpid_match.group(1))
+
+                    if zpid in no_rated_zpids:
+                        if VERBOSE_LOGGING:
+                            print(
+                                f"    -> 🚫 Skipping ZPID {zpid} because user rated it 'no' in remote DB."
+                            )
+                        continue
 
                     print(f"Processing listing {i+1}/{len(listing_links_on_page)} on page {current_page_num} (ZPID: {zpid})...")
 

@@ -13,3 +13,12 @@
     </div>
     {% endif %}
 </div>
+
+{% if properties %}
+<div id="mapExtentTableSection" style="margin-top: 20px;">
+    <div id="mapExtentTableInfo" style="margin-bottom: 10px; font-size: 14px; color: #666;">
+        Showing properties within the current map extent.
+    </div>
+    {% include "_table_results.html" %}
+</div>
+{% endif %}
