@@ -31,7 +31,7 @@ def init_ratings_db(conn):
         """
         CREATE TABLE IF NOT EXISTS rating (
             zpid INTEGER PRIMARY KEY,
-            rating TEXT CHECK (rating IN ('yes','no','maybe')),
+            rating TEXT CHECK (rating IN ('yes','no','maybe','must_see')),
             updated_at TEXT DEFAULT (datetime('now'))
         )
         """
@@ -79,7 +79,7 @@ def save_rating(conn, zpid_value, rating_value: str):
         conn.commit()
         return
 
-    if rating_value not in ("yes", "no", "maybe"):
+    if rating_value not in ("yes", "no", "maybe", "must_see"):
         return
 
     conn.execute(
