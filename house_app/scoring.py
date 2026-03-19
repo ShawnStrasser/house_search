@@ -106,18 +106,28 @@ def add_score_ranks(results_df):
     return ranked_df
 
 
+# Ratings that are always shown regardless of threshold / rank slider
+PINNED_RATINGS = {"yes", "maybe", "must_see"}
+
+
 def apply_threshold_filter(results_df, ranking_mode: str, rank_threshold: int):
     if rank_threshold <= 0:
         return results_df
 
+    # Pinned rows (yes / maybe / must_see) are always shown regardless of slider
+    if "rating" in results_df.columns:
+        pinned_mask = results_df["rating"].isin(PINNED_RATINGS)
+    else:
+        pinned_mask = pd.Series(False, index=results_df.index)
+
     if ranking_mode == "ai":
-        mask = results_df["ai_rank"].notna() & (results_df["ai_rank"] <= rank_threshold)
-        return results_df[mask]
+        threshold_mask = results_df["ai_rank"].notna() & (results_df["ai_rank"] <= rank_threshold)
+        return results_df[pinned_mask | threshold_mask]
 
     if "score_rank" not in results_df.columns:
         results_df = add_score_ranks(results_df)
-    mask = results_df["score_rank"] <= rank_threshold
-    return results_df[mask]
+    threshold_mask = results_df["score_rank"] <= rank_threshold
+    return results_df[pinned_mask | threshold_mask]
 
 
 def generate_scoring_sql(weights: dict, params: dict, financing_filter: list = None) -> str:
@@ -488,7 +498,7 @@ def parse_aggressiveness(request_data, key: str = "optimizer_aggressiveness", de
 def parse_common_filters(request_data):
     rating_filter = request_data.getlist("rating_filter")
     if not rating_filter:
-        rating_filter = ["yes", "maybe", "blank"]
+        rating_filter = ["must_see", "yes", "maybe", "blank"]
 
     status_filter = request_data.getlist("status_filter")
 

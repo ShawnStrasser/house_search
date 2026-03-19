@@ -108,6 +108,10 @@
                             <label>Show ratings:</label>
                             <div class="checkbox-group">
                                 <div class="checkbox-item">
+                                    <input type="checkbox" id="filter_must_see" name="rating_filter" value="must_see" {% if 'must_see' in rating_filter %}checked{% endif %}>
+                                    <label for="filter_must_see">⭐ Must See</label>
+                                </div>
+                                <div class="checkbox-item">
                                     <input type="checkbox" id="filter_yes" name="rating_filter" value="yes" {% if 'yes' in rating_filter %}checked{% endif %}>
                                     <label for="filter_yes">✅ Yes</label>
                                 </div>

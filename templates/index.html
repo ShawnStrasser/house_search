@@ -534,8 +534,10 @@
             row.innerHTML = `
             <td class="rating-column">
                 <select class="rating-select" 
-                        onchange="updateRating(${property.zpid}, this.value, document.getElementById('password').value)">
+                        onchange="updateRating(${property.zpid}, this.value, document.getElementById('password').value)"
+                        data-rating="${property.rating || ''}">
                     <option value="" ${property.rating === '' ? 'selected' : ''}>-</option>
+                    <option value="must_see" ${property.rating === 'must_see' ? 'selected' : ''}>⭐</option>
                     <option value="yes" ${property.rating === 'yes' ? 'selected' : ''}>✅</option>
                     <option value="maybe" ${property.rating === 'maybe' ? 'selected' : ''}>🤔</option>
                     <option value="no" ${property.rating === 'no' ? 'selected' : ''}>❌</option>
@@ -764,6 +766,7 @@
                             <label for="property-rating-${data.zpid}" style="display: block; margin-bottom: 8px; font-weight: 600; color: #333;">Your Current Rating:</label>
                             <select id="property-rating-${data.zpid}" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 4px; font-size: 14px;">
                                 <option value="" ${data.current_rating === '' ? 'selected' : ''}>-</option>
+                                <option value="must_see" ${data.current_rating === 'must_see' ? 'selected' : ''}>⭐ Must See</option>
                                 <option value="yes" ${data.current_rating === 'yes' ? 'selected' : ''}>✅ Yes</option>
                                 <option value="maybe" ${data.current_rating === 'maybe' ? 'selected' : ''}>🤔 Maybe</option>
                                 <option value="no" ${data.current_rating === 'no' ? 'selected' : ''}>❌ No</option>

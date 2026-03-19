@@ -453,13 +453,30 @@ function addPropertyMarkers() {
         
         // Create marker
         const marker = L.marker([property.latitude, property.longitude], {
-            icon: createMarkerIcon(property, markerScale, rankingMode)
+            icon: createMarkerIcon(property, markerScale, rankingMode, false)
         });
         
         // Add click handler to open full-screen modal
         marker.on('click', function() {
             const latest = (window.propertiesData || []).find(p => String(p.zpid) === String(property.zpid));
-            showPropertyModal(latest || property);
+            const clickedProperty = latest || property;
+
+            // Update previously selected marker back to normal
+            if (lastClickedZpid !== null && lastClickedZpid !== String(property.zpid)) {
+                const prevMarker = zpidToMarker.get(lastClickedZpid);
+                const prevProperty = (window.propertiesData || []).find(p => String(p.zpid) === lastClickedZpid);
+                if (prevMarker && prevProperty) {
+                    const scale = getUnratedMarkerScale(window.propertiesData || [], rankingMode);
+                    prevMarker.setIcon(createMarkerIcon(prevProperty, scale, rankingMode, false));
+                }
+            }
+
+            // Highlight this marker with black outline
+            lastClickedZpid = String(property.zpid);
+            const scale = getUnratedMarkerScale(window.propertiesData || [], rankingMode);
+            marker.setIcon(createMarkerIcon(clickedProperty, scale, rankingMode, true));
+
+            showPropertyModal(clickedProperty);
         });
         
         // Add marker to layer and map by zpid
@@ -470,7 +487,8 @@ function addPropertyMarkers() {
 
 function getMarkerColor(rating) {
     switch(rating) {
-        case 'yes': return '#28a745';
+        case 'must_see': return '#9b30d9'; // bright purple
+        case 'yes': return '#28a745';      // regular green
         case 'maybe': return '#ffc107';
         case 'no': return '#dc3545';
         default: return '#6c757d'; // blank
@@ -525,22 +543,27 @@ function getUnratedOutlineColor(property, markerScale, rankingMode) {
     return `hsl(${hue}, 70%, 42%)`;
 }
 
-function createMarkerIcon(property, markerScale, rankingMode) {
+// Track last-clicked marker for black outline
+let lastClickedZpid = null;
+
+function createMarkerIcon(property, markerScale, rankingMode, isSelected) {
     const markerColor = getMarkerColor(property.rating);
-    const outlineColor = getUnratedOutlineColor(property, markerScale, rankingMode);
+    const outlineColor = isSelected ? '#000000' : getUnratedOutlineColor(property, markerScale, rankingMode);
+    const outlineWidth = isSelected ? 3 : 3;
+    const size = isSelected ? 20 : 16;
+    const anchor = Math.round(size / 2);
 
     return L.divIcon({
         className: 'custom-marker',
-        html: `<div style="background-color: ${markerColor}; width: 16px; height: 16px; border-radius: 50%; border: 3px solid ${outlineColor}; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`,
-        iconSize: [16, 16],
-        iconAnchor: [8, 8]
+        html: `<div style="background-color: ${markerColor}; width: ${size}px; height: ${size}px; border-radius: 50%; border: ${outlineWidth}px solid ${outlineColor}; box-shadow: 0 2px 4px rgba(0,0,0,0.3); transition: all 0.15s ease;"></div>`,
+        iconSize: [size, size],
+        iconAnchor: [anchor, anchor]
     });
 }
 
 function updateMarkerColor(zpid, rating) {
     const marker = zpidToMarker.get(String(zpid));
     if (!marker) {
-        // Fallback: rebuild markers if we somehow lost the reference
         addPropertyMarkers();
         return;
     }
@@ -554,7 +577,8 @@ function updateMarkerColor(zpid, rating) {
     property.rating = rating;
     const rankingMode = document.getElementById('ranking_mode')?.value === 'ai' ? 'ai' : 'score';
     const markerScale = getUnratedMarkerScale(properties, rankingMode);
-    marker.setIcon(createMarkerIcon(property, markerScale, rankingMode));
+    const isSelected = lastClickedZpid === String(zpid);
+    marker.setIcon(createMarkerIcon(property, markerScale, rankingMode, isSelected));
 }
 
 function filterTableToMapExtent() {
@@ -699,6 +723,7 @@ function showPropertyModal(property) {
                         <label for="modal-rating-${property.zpid}">Your Rating:</label>
                         <select id="modal-rating-${property.zpid}" class="modal-rating-select">
                             <option value="" ${property.rating === '' ? 'selected' : ''}>-</option>
+                            <option value="must_see" ${property.rating === 'must_see' ? 'selected' : ''}>⭐ Must See</option>
                             <option value="yes" ${property.rating === 'yes' ? 'selected' : ''}>✅ Yes</option>
                             <option value="maybe" ${property.rating === 'maybe' ? 'selected' : ''}>🤔 Maybe</option>
                             <option value="no" ${property.rating === 'no' ? 'selected' : ''}>❌ No</option>
@@ -950,6 +975,8 @@ function updateRatingMap(zpid, newRating, password) {
 // Get current rating filter settings (reuse from base.html)
 function getCurrentRatingFilters() {
     const filters = [];
+    const mustSeeEl = document.getElementById('filter_must_see');
+    if (mustSeeEl && mustSeeEl.checked) filters.push('must_see');
     if (document.getElementById('filter_yes').checked) filters.push('yes');
     if (document.getElementById('filter_no').checked) filters.push('no');
     if (document.getElementById('filter_maybe').checked) filters.push('maybe');
@@ -962,6 +989,7 @@ function shouldShowRating(rating, filters) {
     if (rating === '' || rating === null) {
         return filters.includes('blank');
     }
+    if (rating === 'must_see') return filters.includes('must_see');
     return filters.includes(rating);
 }
 

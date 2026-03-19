@@ -489,7 +489,14 @@
             background: var(--surface-solid);
             cursor: pointer;
             box-shadow: var(--shadow-sm);
+            transition: background 0.2s, border-color 0.2s;
         }
+
+        /* Rating-select color feedback */
+        .rating-select[data-rating="must_see"] { background: linear-gradient(135deg, #f0d6ff 0%, #e4b8ff 100%); border-color: #9b30d9; }
+        .rating-select[data-rating="yes"] { background: linear-gradient(135deg, #d4edda 0%, #b8dfc4 100%); border-color: #28a745; }
+        .rating-select[data-rating="maybe"] { background: linear-gradient(135deg, #fffbde 0%, #fff3b0 100%); border-color: #ffd700; }
+        .rating-select[data-rating="no"] { background: linear-gradient(135deg, #fff0f0 0%, #ffd5d5 100%); border-color: #dc3545; }
 
         .listing-link {
             color: var(--primary);
@@ -657,6 +664,8 @@
         // Get current rating filter settings
         function getCurrentRatingFilters() {
             const filters = [];
+            const mustSeeEl = document.getElementById('filter_must_see');
+            if (mustSeeEl && mustSeeEl.checked) filters.push('must_see');
             if (document.getElementById('filter_yes').checked) filters.push('yes');
             if (document.getElementById('filter_no').checked) filters.push('no');
             if (document.getElementById('filter_maybe').checked) filters.push('maybe');
@@ -669,6 +678,7 @@
             if (rating === '' || rating === null) {
                 return filters.includes('blank');
             }
+            if (rating === 'must_see') return filters.includes('must_see');
             return filters.includes(rating);
         }
 
@@ -846,10 +856,22 @@
             }
         }
 
+        // Sync data-rating attributes on rating selects for CSS color feedback
+        function syncRatingSelectColors() {
+            document.querySelectorAll('.rating-select').forEach(sel => {
+                sel.dataset.rating = sel.value;
+                // Also update on change
+                sel.addEventListener('change', function() {
+                    this.dataset.rating = this.value;
+                });
+            });
+        }
+
         // Mobile-friendly table scrolling indicator
         document.addEventListener('DOMContentLoaded', function() {
             // Auto-authenticate if password is saved
             autoAuthenticate();
+            syncRatingSelectColors();
             const tableContainer = document.querySelector('.table-scroll');
             if (tableContainer) {
                 function checkScroll() {

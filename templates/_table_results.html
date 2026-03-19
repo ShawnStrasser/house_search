@@ -23,10 +23,16 @@
             </thead>
             <tbody>
                 {% for property in properties %}
-                <tr data-zpid="{{ property.zpid }}" data-ai-rank="{{ property.ai_rank if property.ai_rank is not none else 99999 }}" data-total-score="{{ property.total_score }}">
+                <tr data-zpid="{{ property.zpid }}" data-ai-rank="{{ property.ai_rank if property.ai_rank is not none else 99999 }}" data-total-score="{{ property.total_score }}"
+                    {% if property.rating == 'must_see' %}style="background: linear-gradient(90deg, rgba(155,48,217,0.10) 0%, rgba(255,255,255,0) 100%); border-left: 3px solid #9b30d9;"
+                    {% elif property.rating == 'yes' %}style="background: linear-gradient(90deg, rgba(40,167,69,0.10) 0%, rgba(255,255,255,0) 100%); border-left: 3px solid #28a745;"
+                    {% elif property.rating == 'maybe' %}style="background: linear-gradient(90deg, rgba(255,215,0,0.13) 0%, rgba(255,255,255,0) 100%); border-left: 3px solid #ffd700;"
+                    {% endif %}
+                >
                     <td class="rating-column">
                         <select class="rating-select" onchange="updateRating({{ property.zpid }}, this.value, document.getElementById('password').value)" {% if not password_correct %}disabled{% endif %}>
                             <option value="" {% if property.rating == '' %}selected{% endif %}>-</option>
+                            <option value="must_see" {% if property.rating == 'must_see' %}selected{% endif %}>⭐</option>
                             <option value="yes" {% if property.rating == 'yes' %}selected{% endif %}>✅</option>
                             <option value="maybe" {% if property.rating == 'maybe' %}selected{% endif %}>🤔</option>
                             <option value="no" {% if property.rating == 'no' %}selected{% endif %}>❌</option>
